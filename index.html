@@ -144,19 +144,19 @@
       @media(max-width:370px){.actions .btn{font-size:11px}.actions svg{display:none}}
       @media print{.mobile-scroll-hint{display:none!important}}
       /* ---------- print ---------- */
-      @page{ size:A4 landscape; margin:7mm; }
+      @page{ size:A4 landscape; margin:0; }
       @media print{
         body{ background:#fff; }
         .wrap{ max-width:none; padding:0; }
         .no-print{ display:none !important; }
         .sheet-scroll{ overflow:visible; box-shadow:none; border-radius:0; }
-        .sheet{ min-width:0; padding:0; }
-        table.cc{ font-size:6.8px; }
-        table.cc th, table.cc td{ padding:1.4px 1px; }
-        table.cc td.day{ font-size:6.4px; min-width:0; }
+        .sheet{ min-width:0; padding:7mm; }
+        table.cc{ font-size:8.5px; color:#000; table-layout:fixed; }
+        table.cc th, table.cc td{ padding:3px 1px; border:1px solid #000 !important; color:#000; line-height:1.25; }
+        table.cc td.day{ font-size:8px; min-width:0; }
         table.cc th.c-name, table.cc td.c-name{ min-width:78px; }
-        table.cc th.c-title, table.cc td.c-title{ min-width:56px; font-size:6.2px; }
-        table.cc th.c-dept, table.cc td.c-dept{ min-width:54px; font-size:6.2px; }
+        table.cc th.c-title, table.cc td.c-title{ min-width:56px; font-size:8px; }
+        table.cc th.c-dept, table.cc td.c-dept{ min-width:54px; font-size:8px; }
         table.cc td.sum{ min-width:0; }
         .sheet h1{ font-size:14px; }
         .sheet .ent-name{ font-size:12px; }
@@ -164,6 +164,11 @@
         .sign-date{ min-height:12px; margin-bottom:3px; }
         .sign-space{ height:36px; }
         .sign .hint{ font-size:8px; }
+        table.cc thead th{background:#e9f1e9 !important;color:#000 !important;}
+        table.cc thead .dow-row th{background:#f0f0f0 !important;color:#000 !important;}
+        table.cc thead th.hol{color:#b3261e !important;}
+        thead{display:table-header-group;}
+        tr{break-inside:avoid;page-break-inside:avoid;}
         body[data-tab="cc"] #sectionOT, body[data-tab="ot"] #sectionCC{ display:none !important; }
       }
     </style>
@@ -784,7 +789,7 @@
       var ws = wb.addWorksheet(isCC ? "Bang cham cong" : "Bang cham cong TC", {
         pageSetup: { paperSize: 9, orientation: "landscape", scale: 46, fitToHeight: 0, fitToPage: true, fitToWidth: undefined }
       });
-      /* cài đặt in đúng file mẫu: A4 ngang, scale=46, fitToPage=1, fitToHeight=0 và KHÔNG có fitToWidth
+      /* mặc định: A4 ngang, scale=46; bảng ít nhân sự dùng scale=49 theo mẫu An Điền; KHÔNG có fitToWidth
          (fitToWidth: undefined ở trên để ExcelJS bỏ hẳn thuộc tính này khỏi file, như file mẫu) */
       ws.pageSetup.scale = 46;
       if (ws.sheetProperties) ws.sheetProperties.pageSetUpPr = { fitToPage: true };
@@ -814,14 +819,19 @@
         var cpl = Math.max(4, Math.floor((w * 7 + 5) / 5.6));
         return Math.max(1, Math.ceil(String(txt || "").length / cpl));
       }
-      /* Tự cân đối chiều cao dòng khi in A4 ngang: ít nhân sự -> dòng cao hơn,
-         nhiều nhân sự -> giữ dòng gọn. Áp dụng cho cả chấm công và tăng ca.
-         Chiều cao tính theo điểm Excel trước khi áp dụng tỉ lệ in 46%.
-         Giới hạn 68pt/dòng tránh hàng đơn lẻ quá cao. */
+      /* Mẫu chuẩn ít nhân sự: Bang_cham_cong_An_Dien_10-2026 (3).xlsx.
+         9 nhân sự => cao 32.25pt/dòng, hàng thứ 36.75pt, hàng tổng 24.75pt,
+         scale 49% trên A4 ngang. Thay đổi số người sẽ điều chỉnh có giới hạn
+         để giữ bảng cân đối; đông nhân sự dùng thiết lập cũ. */
       var employeeCount = rows.length;
-      var balancedRowHeight = employeeCount > 0 && employeeCount <= 25
-        ? Math.min(68, Math.max(24, 780 / employeeCount))
+      var useSmallTemplate = employeeCount > 0 && employeeCount <= 15;
+      var balancedRowHeight = useSmallTemplate
+        ? Math.min(52, Math.max(18, (9 * 32.25) / employeeCount))
         : 0;
+      if (useSmallTemplate){
+        ws.pageSetup.scale = 49;
+        ws.getRow(DOW_R + 1).height = 36.75;
+      }
       rows.forEach(function(v, rj){
         var nm = isCC ? trim(v[6]) : trim(v[5]);
         var tt = isCC ? titleOf(trim(v[5]), trim(v[cols.title])) : titleOf(trim(v[4]), trim(v[8]));
@@ -830,7 +840,7 @@
         var contentHeight = ln > 1 ? Math.min(60, ln * 12) : 15;
         ws.getRow(DATA0 + rj + 1).height = Math.max(contentHeight, balancedRowHeight);
       });
-      ws.getRow(totalR + 1).height = 15.95; ws.getRow(sigRoleR + 1).height = 15.95;
+      ws.getRow(totalR + 1).height = useSmallTemplate ? 24.75 : 15.95; ws.getRow(sigRoleR + 1).height = 15.95;
       for (var sr2 = sigHintR + 1; sr2 < sigNameR; sr2++) ws.getRow(sr2 + 1).height = 15;
       /* ---- tô màu file Excel: tông NHẠT, đường viền ĐEN mảnh cho mọi ô bảng (chỉ file Excel — giao diện web giữ nguyên) ---- */
       var thinSide = { style: "thin", color: { argb: "FF000000" } };
@@ -924,7 +934,7 @@
       }
       var title = (kind === "cc" ? "Bảng chấm công" : "Bảng chấm công tăng ca") + " tháng " + state.month + "/" + state.year + " — " + entityLabel(state.entityKey);
       var css =
-        '@page{size:A4 landscape;margin:7mm}' +
+        '@page{size:A4 landscape;margin:0}' +
         'body{font-family:"Times New Roman",Times,serif;margin:10px;color:#14231a}' +
         '.pbar{margin:0 0 12px;padding:10px 12px;background:#e8f3ea;border:1px solid #17693a;border-radius:8px;font-size:13.5px}' +
         '.pbar button{font:inherit;font-weight:700;background:#17693a;color:#fff;border:0;border-radius:7px;padding:8px 16px;cursor:pointer;margin-right:10px}' +
@@ -933,7 +943,7 @@
         '.ent-addr{font-size:12.5px;color:#43564a;margin-top:2px}' +
         'h1{text-align:center;font-size:19px;font-weight:800;color:#0e4d29;margin:14px 0 10px}' +
         'table.cc{border-collapse:collapse;width:100%;font-size:10.5px}' +
-        'table.cc th,table.cc td{border:1px solid #9db8a4;padding:2.5px 2px;text-align:center;vertical-align:middle}' +
+        'table.cc th,table.cc td{border:1px solid #000;padding:2.5px 2px;text-align:center;vertical-align:middle}' +
         'table.cc thead th{background:#17693a;color:#fff;font-weight:700}' +
         'table.cc thead .dow-row th{background:#2c7d4b;font-weight:500;font-size:8.5px}' +
         'table.cc th.c-name,table.cc td.c-name{text-align:left;padding-left:5px}' +
@@ -957,9 +967,9 @@
         '.sign .hint{font-style:italic;font-size:11px;color:#43564a;margin-top:2px}' +
         '.sign-space{height:64px}' +
         '.sign-line{width:55%;margin:0 auto;border-bottom:1px dotted #9db8a4}' +
-        '@media print{.pbar{display:none}body{margin:0}table.cc{font-size:6.8px}table.cc th,table.cc td{padding:1.4px 1px}table.cc td.day{font-size:6.4px}h1{font-size:14px}.ent-name{font-size:12px}.sign{font-size:9px;padding-left:43mm;padding-right:43mm}.sign-space{height:36px}}';
+        '@media print{.pbar{display:none}body{margin:0;color:#000}.sheet{padding:7mm;box-sizing:border-box}table.cc{font-size:8.5px;table-layout:fixed;color:#000}table.cc th,table.cc td{border:1px solid #000!important;color:#000;padding:3px 1px;line-height:1.25}table.cc td.day{font-size:8px}table.cc td.c-title,table.cc td.c-dept{font-size:8px}table.cc thead th{background:#e9f1e9!important;color:#000!important}table.cc thead .dow-row th{background:#f0f0f0!important;color:#000!important}table.cc thead th.hol,table.cc thead .dow-row th.hol{color:#b3261e!important}h1{font-size:14px}.ent-name{font-size:12px}.sign{font-size:9px;padding-left:43mm;padding-right:43mm}.sign-space{height:36px}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}}';
       var html = '<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>' + css + '</style></head><body>' +
-        '<div class="pbar"><b>Trang in đã sẵn sàng (khổ A4 ngang).</b> Bấm <b>Ctrl+P</b> (trên Mac: <b>Cmd+P</b>) hoặc mở menu trình duyệt → <b>In</b> để in / lưu PDF.</div>' +
+        '<div class="pbar"><b>Trang in đã sẵn sàng (khổ A4 ngang).</b> Bấm <b>Ctrl+P</b> (trên Mac: <b>Cmd+P</b>) để in / lưu PDF. Nếu trình duyệt còn hiện ngày giờ, địa chỉ website hoặc tiêu đề ngoài mép giấy, vào <b>Cài đặt khác (More settings)</b> và bỏ chọn <b>Đầu trang và chân trang (Headers and footers)</b>.</div>' +
         el.outerHTML +
         '</body></html>';
       var w = null;
