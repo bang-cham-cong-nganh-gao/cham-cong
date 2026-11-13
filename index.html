@@ -1,0 +1,1096 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Bảng Chấm Công Ngành Gạo</title>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+      :root{
+        --green:#17693a; --green-dark:#0e4d29; --green-pale:#e8f3ea; --green-soft:#f2f8f2;
+        --yellow:#e9b949; --yellow-pale:#fdf3d3; --yellow-dark:#a87b14;
+        --bg:#f6f8f4; --card:#ffffff; --ink:#1d2b1f; --muted:#5d7060; --line:#ccd9cc;
+        --err:#b3261e; --err-bg:#fdecea;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --bg:#10160f; --card:#1a231a; --ink:#e9f1e7; --muted:#a3b5a4; --line:#33463a;
+          --green-pale:#22392a; --green-soft:#1c2a20; --yellow-pale:#3a331d; --err-bg:#3d1d1a;
+        }
+      }
+      *{ box-sizing:border-box; }
+      button, select, [role="button"]{ min-height:2.25rem; }
+      body{ margin:0; font-family:"Times New Roman",Times,serif; background:var(--bg); color:var(--ink); font-size:14px; }
+      .wrap{ max-width:1440px; margin:0 auto; padding:14px 14px 90px; }
+      /* ---------- controls ---------- */
+      .controls{ background:linear-gradient(180deg,#ffffff 0%,var(--green-soft) 100%); border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
+      @media (prefers-color-scheme: dark){ .controls{ background:var(--card); } }
+      .controls-row{ display:flex; flex-wrap:wrap; gap:10px 14px; align-items:flex-end; }
+      .field{ display:flex; flex-direction:column; gap:4px; }
+      .field label{ font-size:11.5px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+      select{ font:inherit; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--ink); min-height:40px; }
+      select#selEntity{ min-width:min(320px,72vw); }
+      .btn{ font:inherit; font-weight:600; border-radius:9px; border:1px solid var(--green); padding:8px 14px; cursor:pointer; background:var(--card); color:var(--green-dark); min-height:40px; }
+      @media (prefers-color-scheme: dark){ .btn{ color:#bfe3c8; } }
+      .btn:hover{ background:var(--green-pale); }
+      .btn.primary{ background:var(--green); color:#fff; border-color:var(--green); }
+      .btn.primary:hover{ background:var(--green-dark); }
+      .sync-line{ margin-top:10px; font-size:12.5px; color:var(--muted); }
+      .sync-line b{ color:var(--green-dark); }
+      @media (prefers-color-scheme: dark){ .sync-line b{ color:#bfe3c8; } }
+      .err-line{ display:none; margin-top:10px; font-size:13px; color:var(--err); background:var(--err-bg); border:1px solid var(--err); border-radius:9px; padding:8px 12px; }
+      .err-line.show{ display:block; }
+      .entity-note{ margin-top:6px; font-size:11.5px; color:var(--muted); line-height:1.45; }
+      /* ---------- tabs ---------- */
+      .tabs{ display:flex; gap:8px; margin:16px 0 12px; flex-wrap:wrap; }
+      .tab-btn{ font:inherit; font-weight:700; font-size:14.5px; padding:9px 18px; border-radius:999px; border:1.5px solid var(--green); background:transparent; color:var(--green-dark); cursor:pointer; min-height:42px; }
+      @media (prefers-color-scheme: dark){ .tab-btn{ color:#bfe3c8; } }
+      .tab-btn.active{ background:var(--green); color:#fff; }
+      /* ---------- summary strip ---------- */
+      .summary{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+      .stat{ background:var(--card); border:1px solid var(--green-pale); border-left:4px solid var(--green); border-radius:10px; padding:9px 14px; min-width:150px; flex:0 1 auto; }
+      .stat .k{ font-size:11.5px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+      .stat .v{ font-size:19px; font-weight:800; color:var(--green-dark); margin-top:2px; }
+      @media (prefers-color-scheme: dark){ .stat .v{ color:#cdeeda; } }
+      .stat.gold{ background:var(--yellow-pale); border-left-color:var(--yellow-dark); }
+      .stat.gold .v{ color:var(--yellow-dark); }
+      @media (prefers-color-scheme: dark){ .stat.gold .v{ color:#f0d48a; } }
+      /* ---------- actions ---------- */
+      .actions{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+      .actions .btn{ display:inline-flex; align-items:center; gap:7px; }
+      .actions svg{ width:15px; height:15px; flex:none; }
+      /* ---------- sheet (print document) ---------- */
+      .sheet-scroll{ overflow-x:auto; border-radius:10px; box-shadow:0 1px 6px rgba(20,40,20,.14); }
+      .sheet{ background:#ffffff; color:#14231a; padding:20px 22px 26px; min-width:1180px; }
+      .sheet .ent-name{ font-size:16.5px; font-weight:800; text-transform:uppercase; color:#0e4d29; }
+      .sheet .ent-addr{ font-size:12.5px; color:#43564a; margin-top:2px; }
+      .sheet h1{ text-align:center; font-size:19px; font-weight:800; color:#0e4d29; margin:14px 0 4px; letter-spacing:.01em; }
+      .sheet .sub-note{ text-align:center; font-size:12px; color:#43564a; margin-bottom:10px; }
+      table.cc{ border-collapse:collapse; width:100%; font-size:10.5px; }
+      table.cc th, table.cc td{ border:1px solid #9db8a4; padding:2.5px 2px; text-align:center; vertical-align:middle; }
+      table.cc thead th{ background:#17693a; color:#fff; font-weight:700; }
+      table.cc thead .dow-row th{ background:#2c7d4b; font-weight:500; font-size:8.5px; }
+      table.cc th.c-name, table.cc td.c-name{ text-align:left; padding-left:5px; white-space:normal; min-width:130px; }
+      table.cc th.c-title, table.cc td.c-title{ text-align:left; padding-left:4px; white-space:normal; min-width:96px; font-size:9.5px; }
+      table.cc th.c-dept, table.cc td.c-dept{ text-align:left; padding-left:4px; white-space:normal; min-width:92px; font-size:9.5px; }
+      table.cc td.day{ min-width:19px; font-size:9.5px; }
+      table.cc td.sun, table.cc th.sun{ background:#fdf3d3; }
+      table.cc thead th.sun{ background:#8a6d1f; }
+      table.cc thead .dow-row th.sun{ background:#a8892f; }
+      table.cc td.sum{ font-weight:600; min-width:40px; }
+      table.cc tbody tr:nth-child(even) td{ background:#f2f8f2; }
+      table.cc tbody tr td.sun{ background:#fdf3d3; }
+      table.cc tr.total td{ background:#fdf3d3; font-weight:800; }
+      table.cc td.msnv{ font-size:9.5px; white-space:nowrap; }
+      /* canh giữa chữ trong MỌI ô hàng tiêu đề (kể cả Họ và tên / Chức danh / Bộ phận) */
+      table.cc thead th.c-name, table.cc thead th.c-title, table.cc thead th.c-dept{ text-align:center; }
+      /* ngày lễ: tiêu đề đỏ trên nền nhạt, ô ngày ở tab chấm công hiện chữ "Lễ" đỏ in đậm */
+      table.cc thead th.hol{ background:#fdeeda; color:#c0392b; font-weight:800; }
+      table.cc thead .dow-row th.hol{ background:#f7e3c2; color:#c0392b; font-weight:700; }
+      table.cc td.hol-txt{ color:#c0392b; font-weight:700; }
+      .sign{ display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:18px; font-size:12.5px; width:100%; padding-left:4.42cm; padding-right:4.42cm; }
+      .sign-col{ text-align:center; min-width:0; }
+      .sign-date{ font-style:italic; color:#14231a; min-height:18px; margin-bottom:6px; }
+      .sign .role{ font-weight:700; text-transform:uppercase; }
+      .sign .hint{ font-weight:400; font-style:italic; font-size:11px; color:#43564a; margin-top:2px; }
+      .sign-space{ height:64px; }
+      .sign-line{ width:55%; margin:0 auto; border-bottom:1px dotted #9db8a4; }
+      /* ---------- empty state ---------- */
+      .empty{ background:var(--card); border:1.5px dashed var(--yellow-dark); border-radius:12px; padding:26px 20px; text-align:center; }
+      .empty .big{ font-size:16.5px; font-weight:700; color:var(--ink); }
+      .empty .small{ font-size:13px; color:var(--muted); margin-top:6px; }
+      .empty .btn{ margin-top:14px; }
+      .hidden{ display:none !important; }
+      /* ---------- ready bar / notice ---------- */
+      .readybar{ position:fixed; left:50%; transform:translateX(-50%); bottom:16px; z-index:60; background:#0e4d29; color:#fff; border-radius:12px; padding:11px 16px; font-size:13.5px; box-shadow:0 6px 22px rgba(0,0,0,.3); display:none; max-width:min(92vw,560px); align-items:center; gap:10px; }
+      .readybar.show{ display:flex; }
+      .readybar a{ color:#ffe082; font-weight:700; text-decoration:underline; padding:4px 2px; }
+      .readybar button{ background:transparent; border:none; color:#fff; font-size:17px; cursor:pointer; min-height:32px; min-width:32px; }
+      .noticebar{ position:fixed; left:50%; transform:translateX(-50%); bottom:16px; z-index:61; background:#fdf3d3; color:#5f4a08; border:1px solid var(--yellow-dark); border-radius:12px; padding:11px 16px; font-size:13.5px; font-weight:600; box-shadow:0 6px 22px rgba(0,0,0,.22); display:none; max-width:min(92vw,560px); }
+      .noticebar.show{ display:block; }
+      .loading{ padding:34px 10px; text-align:center; color:var(--muted); font-size:14px; }
+
+      /* Cloudflare Pages / mobile adaptation */
+      .sheet-scroll{ -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; }
+      .sheet-scroll:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+      .mobile-scroll-hint{display:none;color:var(--muted);font-size:12px;margin:0 0 8px}
+      @media(max-width:650px){
+        .wrap{padding:10px 10px 85px}
+        .controls{padding:12px;border-radius:12px}
+        .controls-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px}
+        .controls-row .field{min-width:0}
+        .controls-row .field:nth-child(3){grid-column:1 / -1}
+        .controls-row #btnSync{grid-column:1 / -1;width:100%;min-height:44px}
+        .controls-row select, select#selEntity{width:100%;min-width:0;max-width:100%}
+        .tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0}
+        .tab-btn{border-radius:10px;padding:9px 5px;font-size:12.5px;line-height:1.25;min-height:47px}
+        .summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+        .stat{min-width:0;padding:9px 10px}
+        .stat .v{font-size:17px}
+        .stat .k{font-size:10px}
+        .actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+        .actions .btn{padding:9px 3px;justify-content:center;font-size:12px;gap:4px;min-width:0}
+        .actions svg{width:14px;height:14px}
+        .sheet{padding:15px;min-width:1180px}
+        .sheet-scroll{border:1px solid var(--line)}
+        .mobile-scroll-hint{display:block}
+        .readybar{width:calc(100vw - 22px);bottom:max(8px,env(safe-area-inset-bottom));flex-wrap:wrap;justify-content:center;text-align:center}
+        .noticebar{width:calc(100vw - 22px);bottom:max(8px,env(safe-area-inset-bottom))}
+      }
+      @media(max-width:370px){.actions .btn{font-size:11px}.actions svg{display:none}}
+      @media print{.mobile-scroll-hint{display:none!important}}
+      /* ---------- print ---------- */
+      @page{ size:A4 landscape; margin:7mm; }
+      @media print{
+        body{ background:#fff; }
+        .wrap{ max-width:none; padding:0; }
+        .no-print{ display:none !important; }
+        .sheet-scroll{ overflow:visible; box-shadow:none; border-radius:0; }
+        .sheet{ min-width:0; padding:0; }
+        table.cc{ font-size:6.8px; }
+        table.cc th, table.cc td{ padding:1.4px 1px; }
+        table.cc td.day{ font-size:6.4px; min-width:0; }
+        table.cc th.c-name, table.cc td.c-name{ min-width:78px; }
+        table.cc th.c-title, table.cc td.c-title{ min-width:56px; font-size:6.2px; }
+        table.cc th.c-dept, table.cc td.c-dept{ min-width:54px; font-size:6.2px; }
+        table.cc td.sum{ min-width:0; }
+        .sheet h1{ font-size:14px; }
+        .sheet .ent-name{ font-size:12px; }
+        .sign{ font-size:9px; gap:12px; margin-top:10px; width:100%; padding-left:43mm; padding-right:43mm; }
+        .sign-date{ min-height:12px; margin-bottom:3px; }
+        .sign-space{ height:36px; }
+        .sign .hint{ font-size:8px; }
+        body[data-tab="cc"] #sectionOT, body[data-tab="ot"] #sectionCC{ display:none !important; }
+      }
+    </style>
+  </head>
+  <body data-tab="cc">
+    <main class="wrap">
+      <!-- Controls -->
+      <section class="controls no-print" aria-label="Bộ chọn kỳ và pháp nhân">
+        <div class="controls-row">
+          <div class="field">
+            <label for="selYear">Năm</label>
+            <select id="selYear"></select>
+          </div>
+          <div class="field">
+            <label for="selMonth">Tháng</label>
+            <select id="selMonth"></select>
+          </div>
+          <div class="field">
+            <label for="selEntity">Pháp nhân</label>
+            <select id="selEntity"></select>
+          </div>
+          <button class="btn primary" id="btnSync" type="button">Tải dữ liệu mới nhất</button>
+        </div>
+        <div class="entity-note">Chỉ hiển thị pháp nhân đã có tên đầy đủ và địa chỉ trên tab Data — bổ sung thông tin vào tab Data để pháp nhân hiện lại trong danh sách.</div>
+        <div class="sync-line" id="syncLine">Đang tải dữ liệu từ Google Sheet…</div>
+        <div class="err-line" id="errLine" role="alert"></div>
+      </section>
+
+      <!-- Tabs -->
+      <nav class="tabs no-print" aria-label="Loại bảng chấm công">
+        <button class="tab-btn active" id="tabBtnCC" type="button">Bảng chấm công</button>
+        <button class="tab-btn" id="tabBtnOT" type="button">Bảng chấm công tăng ca</button>
+      </nav>
+
+      <!-- ============ TAB 1: BẢNG CHẤM CÔNG ============ -->
+      <section id="sectionCC">
+        <div class="summary no-print" id="summaryCC"></div>
+        <div class="actions no-print">
+          <button class="btn" id="btnPrintCC" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>In bảng</button>
+          <button class="btn" id="btnExcelCC" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 6 6M15 15l-6 6"/></svg>Tải Excel</button>
+          <button class="btn" id="btnPngCC" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>Tải ảnh PNG</button>
+        </div>
+        <div class="mobile-scroll-hint no-print">Vuốt ngang bảng để xem đầy đủ các ngày và cột tổng hợp.</div>
+        <div id="ccBody"><div class="loading">Đang tải dữ liệu…</div></div>
+      </section>
+
+      <!-- ============ TAB 2: BẢNG CHẤM CÔNG TĂNG CA ============ -->
+      <section id="sectionOT" class="hidden">
+        <div class="summary no-print" id="summaryOT"></div>
+        <div class="actions no-print">
+          <button class="btn" id="btnPrintOT" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>In bảng</button>
+          <button class="btn" id="btnExcelOT" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 6 6M15 15l-6 6"/></svg>Tải Excel</button>
+          <button class="btn" id="btnPngOT" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>Tải ảnh PNG</button>
+        </div>
+        <div class="mobile-scroll-hint no-print">Vuốt ngang bảng để xem đầy đủ các ngày và cột tổng hợp.</div>
+        <div id="otBody"><div class="loading">Đang tải dữ liệu…</div></div>
+      </section>
+    </main>
+
+    <div class="readybar" id="readyBar"><span id="readyText"></span><a id="readyLink" href="#" download>Bấm vào đây để tải file</a><button id="readyClose" type="button" aria-label="Đóng">×</button></div>
+    <div class="noticebar" id="noticeBar" role="status"></div>
+
+    <script>
+    "use strict";
+    /* ================= CONFIG ================= */
+    var SID = "1E_QMEp-p_9K8nINrdFuGMJ2_Hc1JaiiyYG4OL15OOE4";
+    var GID = { cc: 1681145073, ot: 200922096, data: 0, holiday: 1034399780 };
+    var SHEET = { cc: "Data chấm công", ot: "Data tăng ca", data: "Data", holiday: "Bảng chấm công" };
+    /* Ngày lễ KHÔNG hard-code: đọc live từ tab "Bảng chấm công" cột BB ("Ngày lễ", từ hàng 2, dạng dd/mm/yyyy)
+       mỗi lần tải dữ liệu — chị thêm/sửa ngày trên Sheet là app tự cập nhật. state.holidays: khóa "d/m/yyyy" hoặc "d/m/" (không năm). */
+    var DOW = ["Chủ Nhật","Thứ Hai","Thứ Ba","Thứ Tư","Thứ Năm","Thứ Sáu","Thứ Bảy"];
+    var TITLE_RE = /nhân viên|chuyên viên|trưởng|phó giám|giám đốc|kế toán|thủ quỹ|lái xe|bảo vệ|kcs|admin|quản đốc|tài xế|vệ sinh|tổ trưởng|tổ phó/i;
+
+    /* ================= STATE ================= */
+    var state = {
+      year: 2026, month: 10, entityKey: "", tab: "cc",
+      entities: {},        // key -> {display, full, addr, province}
+      titleByMsnv: {},     // from tab Data col J
+      ccRows: [], otRows: [],
+      holidays: {},        // "d/m/yyyy" | "d/m/" -> 1, đọc live từ tab "Bảng chấm công" cột BB
+      ccMonths: [], otMonths: [],   // [{y, m}]
+      entitySpell: {},     // key -> {spelling: count}
+      loaded: false
+    };
+
+    /* ================= HELPERS ================= */
+    function $(id){ return document.getElementById(id); }
+    function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+    function trim(s){ return String(s==null?"":s).trim(); }
+    function entityKeyOf(raw){
+      var t = trim(raw).replace(/\s+/g, " ");
+      if (!t || t === "-" || t === "#N/A") return "__none";
+      return t.toLowerCase();
+    }
+    function entityLabel(key){ return key === "__none" ? "Chưa cập nhật pháp nhân" : (state.entities[key] ? state.entities[key].display : key); }
+    /* Tên đầy đủ (tab Data cột B) tra theo tên ngắn (cột A), khớp không phân biệt hoa/thường qua entityKeyOf */
+    function entityFullName(key){ var e = state.entities[key]; return e && trim(e.full) ? trim(e.full) : ""; }
+    /* Pháp nhân chỉ được chọn/hiển thị khi có đủ tên đầy đủ (cột B) và địa chỉ (cột C) trên tab Data */
+    function entityHasFullInfo(key){
+      if (key === "__none") return false;
+      var e = state.entities[key];
+      return !!(e && trim(e.full) && trim(e.addr));
+    }
+    /* Pháp nhân ẩn cột "Bộ phận" trên cả 2 bảng (khớp theo tên hiển thị đã gộp, không phân biệt hoa/thường).
+       Muốn ẩn thêm pháp nhân khác: bổ sung tên hiển thị của pháp nhân đó vào danh sách này. */
+    var HIDE_DEPT_ENTITIES = ["an điền", "kiến nông", "vì dân"];
+    function hideDeptCol(){
+      var lbl = entityLabel(state.entityKey).replace(/\s+/g, " ").trim().toLowerCase();
+      return HIDE_DEPT_ENTITIES.indexOf(lbl) >= 0;
+    }
+    function todayLine(){
+      var n = new Date(), p = function(x){ return String(x).padStart(2, "0"); };
+      return "Ngày " + p(n.getDate()) + " tháng " + p(n.getMonth() + 1) + " năm " + n.getFullYear();
+    }
+    function parseNum(v){
+      if (v == null) return null;
+      var s = String(v).replace(/\s/g, "");
+      if (!s || s === "-" || s === "#N/A") return null;
+      s = s.replace(/\./g, "").replace(",", ".");           // 2.815 -> 2815 ; 24,5 -> 24.5
+      if (!/^-?\d+(\.\d+)?$/.test(s)) { var f = parseFloat(s.replace(",", ".")); return isNaN(f) ? null : f; }
+      return parseFloat(s);
+    }
+    function fmtNum(n){
+      if (n == null || isNaN(n)) return "-";
+      return n.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+    }
+    function cellStr(cell){
+      if (!cell) return "";
+      var v = (cell.f != null ? cell.f : cell.v);
+      return v == null ? "" : String(v);
+    }
+    function rowVals(row, n){
+      var out = [], c = (row && row.c) || [];
+      for (var i = 0; i < n; i++) out.push(cellStr(c[i]));
+      return out;
+    }
+    function stripDiac(s){
+      return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    }
+    function daysInMonth(y, m){ return new Date(y, m, 0).getDate(); }
+    function isHoliday(y, m, d){
+      if (d > daysInMonth(y, m)) return false;
+      return !!(state.holidays[d + "/" + m + "/" + y] || state.holidays[d + "/" + m + "/"]);
+    }
+    function isSundayOrHoliday(y, m, d){
+      if (d > daysInMonth(y, m)) return false;
+      var dt = new Date(y, m - 1, d);
+      if (dt.getDay() === 0) return true;
+      return isHoliday(y, m, d);
+    }
+    /* class cho ô tiêu đề ngày: "sun" nếu Chủ Nhật/ngày lễ (tô nhạt), thêm "hol" nếu là ngày lễ (chữ đỏ) */
+    function dayHeadClass(y, m, d){
+      var c = isSundayOrHoliday(y, m, d) ? "sun" : "";
+      if (isHoliday(y, m, d)) c += " hol";
+      return c.trim();
+    }
+    function nowStamp(){
+      var d = new Date(), p = function(n){ return String(n).padStart(2, "0"); };
+      return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + " ngày " + p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear();
+    }
+
+    /* ================= DATA LOADING (gviz JSONP + CSV fallback) ================= */
+    var jsonpSeq = 0;
+    var loadSeq = 0;
+    function gvizJSONP(sheet, tq){
+      return new Promise(function(resolve, reject){
+        var name = "__gviz_cc_" + (++jsonpSeq) + "_" + Date.now();
+        var script = document.createElement("script");
+        var done = false;
+        var timer = setTimeout(function(){ cleanup(); reject(new Error("Quá thời gian chờ (20 giây) khi tải tab " + sheet)); }, 20000);
+        function cleanup(){
+          clearTimeout(timer);
+          try { delete window[name]; } catch(e){ window[name] = undefined; }
+          if (script.parentNode) script.parentNode.removeChild(script);
+        }
+        window[name] = function(resp){
+          if (done) return; done = true; cleanup();
+          if (resp && resp.status === "ok" && resp.table) resolve(resp.table);
+          else reject(new Error("Google Sheet trả lỗi khi đọc tab " + sheet));
+        };
+        script.onerror = function(){ if (done) return; done = true; cleanup(); reject(new Error("Không tải được tab " + sheet)); };
+        var url = "https://docs.google.com/spreadsheets/d/" + SID + "/gviz/tq?tqx=out:json;responseHandler:" + name + "&headers=0&sheet=" + encodeURIComponent(sheet);
+        if (tq) url += "&tq=" + encodeURIComponent(tq);
+        script.src = url;
+        document.head.appendChild(script);
+      });
+    }
+    function parseCSV(text){
+      var rows = [], row = [], cur = "", inQ = false, i, ch;
+      for (i = 0; i < text.length; i++){
+        ch = text[i];
+        if (inQ){
+          if (ch === '"'){ if (text[i + 1] === '"'){ cur += '"'; i++; } else inQ = false; }
+          else cur += ch;
+        } else if (ch === '"') inQ = true;
+        else if (ch === ","){ row.push(cur); cur = ""; }
+        else if (ch === "\n"){ row.push(cur); rows.push(row); row = []; cur = ""; }
+        else if (ch !== "\r") cur += ch;
+      }
+      if (cur !== "" || row.length){ row.push(cur); rows.push(row); }
+      return rows;
+    }
+    function gvizCSV(gid){
+      return fetch("https://docs.google.com/spreadsheets/d/" + SID + "/export?format=csv&gid=" + gid)
+        .then(function(r){ if (!r.ok) throw new Error("CSV HTTP " + r.status); return r.text(); })
+        .then(function(text){
+          var raw = parseCSV(text);
+          return { rows: raw.map(function(r){ return { c: r.map(function(v){ return { v: v, f: v }; }) }; }) };
+        });
+    }
+    function loadTable(kind, tq){
+      return gvizJSONP(SHEET[kind], tq).catch(function(){
+        return gvizCSV(GID[kind]).then(function(tbl){
+          if (!tq) return tbl;
+          /* CSV fallback: lọc tháng/năm phía client (cột A, B) */
+          var m = /A\s*=\s*(\d+)\s*and\s*B\s*=\s*(\d+)/i.exec(tq);
+          if (m){
+            tbl.rows = tbl.rows.filter(function(r){
+              var a = parseNum(cellStr(r.c[0])), b = parseNum(cellStr(r.c[1]));
+              return a === +m[1] && b === +m[2];
+            });
+          }
+          return tbl;
+        });
+      });
+    }
+    /* ================= NORMALIZE DATA ================= */
+    function noteSpelling(raw){
+      var t = trim(raw), k = entityKeyOf(raw);
+      if (k === "__none") return k;
+      state.entitySpell[k] = state.entitySpell[k] || {};
+      state.entitySpell[k][t] = (state.entitySpell[k][t] || 0) + 1;
+      return k;
+    }
+    function bestSpelling(k){
+      var bag = state.entitySpell[k] || {}, best = "", cnt = -1;
+      Object.keys(bag).forEach(function(s){ if (bag[s] > cnt){ cnt = bag[s]; best = s; } });
+      return best || k;
+    }
+    function refreshEntityDisplays(){
+      Object.keys(state.entitySpell).forEach(function(k){
+        state.entities[k] = state.entities[k] || {};
+        state.entities[k].display = bestSpelling(k);
+      });
+      if (!state.entities["__none"]) state.entities["__none"] = { display: "Chưa cập nhật pháp nhân" };
+      else state.entities["__none"].display = "Chưa cập nhật pháp nhân";
+    }
+    /* Tab Data: A pháp nhân ngắn, B tên đầy đủ, C địa chỉ, D tỉnh/TP; H MSNV, J chức danh */
+    function ingestDataTab(tbl){
+      tbl.rows.forEach(function(r, idx){
+        if (idx === 0) return;
+        var v = rowVals(r, 11);
+        var shortName = trim(v[0]);
+        if (shortName){
+          var k = entityKeyOf(shortName);
+          state.entities[k] = state.entities[k] || {};
+          state.entities[k].full = trim(v[1]);
+          state.entities[k].addr = trim(v[2]).replace(/,\s*$/, "");
+          state.entities[k].province = trim(v[3]);
+          noteSpelling(shortName);
+        }
+        var msnv = trim(v[7]);
+        if (msnv && trim(v[9])) state.titleByMsnv[msnv] = trim(v[9]);
+      });
+    }
+    /* Tab "Bảng chấm công" (bảng mẫu), cột BB (index 53): hàng 1 là tiêu đề "Ngày lễ",
+       từ hàng 2 là danh sách ngày lễ dạng dd/mm/yyyy; dạng dd/mm (không năm) hiểu là năm đang chọn. */
+    function ingestHolidays(tbl){
+      var set = {};
+      tbl.rows.forEach(function(r){
+        var c = (r && r.c) || [];
+        var s = trim(cellStr(c.length > 53 ? c[53] : c[0]));
+        if (!s) return;
+        var dm = /Date\((\d{4}),\s*(\d{1,2}),\s*(\d{1,2})\)/.exec(s), d, mo, y = null;
+        if (dm){ y = +dm[1]; mo = +dm[2] + 1; d = +dm[3]; }
+        else {
+          var vm2 = /(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?/.exec(s);
+          if (!vm2) return;
+          d = +vm2[1]; mo = +vm2[2];
+          if (vm2[3]) y = vm2[3].length === 2 ? 2000 + (+vm2[3]) : +vm2[3];
+          if (d < 1 || d > 31 || mo < 1 || mo > 12) return;
+        }
+        set[d + "/" + mo + "/" + (y || "")] = 1;
+      });
+      state.holidays = set;
+    }
+    /* Phát hiện cột Chức danh / Bộ phận trong Data chấm công:
+       tháng 1–4/2026: H = Bộ phận, K = Chức danh; tháng 5–10/2026: H = Chức danh, K = Bộ phận.
+       Chấm điểm bằng từ khóa chức danh trên toàn bộ dòng của tháng để tự nhận diện. */
+    function detectTitleDeptCols(rows){
+      var scoreH = 0, scoreK = 0;
+      rows.forEach(function(v){
+        if (TITLE_RE.test(v[7] || "")) scoreH++;
+        if (TITLE_RE.test(v[10] || "")) scoreK++;
+      });
+      return scoreK >= scoreH ? { title: 10, dept: 7 } : { title: 7, dept: 10 };
+    }
+    function ingestCC(tbl){
+      var rows = [];
+      tbl.rows.forEach(function(r){
+        var v = rowVals(r, 65);
+        var mo = parseNum(v[0]), yr = parseNum(v[1]);
+        if (mo !== state.month || yr !== state.year) return;
+        if (!trim(v[5])) return;                 // bỏ dòng không có MSNV
+        v._stt = parseNum(v[2]) || 0;
+        v._entity = noteSpelling(v[64]);
+        rows.push(v);
+      });
+      rows.sort(function(a, b){ return a._stt - b._stt; });
+      state.ccRows = rows;
+      state.ccCols = detectTitleDeptCols(rows);
+    }
+    function ingestOT(tbl){
+      var rows = [];
+      tbl.rows.forEach(function(r){
+        var v = rowVals(r, 53);
+        var mo = parseNum(v[0]), yr = parseNum(v[1]);
+        if (mo !== state.month || yr !== state.year) return;
+        if (!trim(v[4])) return;
+        v._stt = parseNum(v[2]) || 0;
+        var ek = entityKeyOf(v[52]);
+        if (ek === "__none"){
+          /* tab tăng ca: pháp nhân ở cột BA; nếu trống/#N/A thì tra theo MSNV trong Data chấm công cùng tháng */
+          var hit = state.ccRows.filter(function(x){ return trim(x[5]) === trim(v[4]); })[0];
+          ek = hit ? hit._entity : "__none";
+        } else noteSpelling(v[52]);
+        v._entity = ek;
+        rows.push(v);
+      });
+      rows.sort(function(a, b){ return a._stt - b._stt; });
+      state.otRows = rows;
+    }
+    function titleOf(msnv, fallbackTitle){
+      var t = state.titleByMsnv[trim(msnv)];
+      return t || fallbackTitle || "";
+    }
+
+    /* ================= RENDER: shared ================= */
+    function entityHeaderHTML(kind){
+      var e = state.entities[state.entityKey] || {};
+      var name = entityFullName(state.entityKey) || entityLabel(state.entityKey);
+      var h = '<div class="ent-name">' + esc(name) + "</div>";
+      if (trim(e.addr)) h += '<div class="ent-addr">' + esc(trim(e.addr)) + "</div>";
+      h += "<h1>" + (kind === "cc" ? "BẢNG CHẤM CÔNG" : "BẢNG CHẤM CÔNG TĂNG CA") + " THÁNG " + state.month + " NĂM " + state.year + "</h1>";
+      return h;
+    }
+    function signatureHTML(){
+      return '<div class="sign">' +
+        '<div class="sign-col"><div class="sign-date">&nbsp;</div><div class="role">Phê duyệt</div><div class="hint">(Ký, ghi rõ họ tên)</div><div class="sign-space"></div><div class="sign-line"></div></div>' +
+        '<div class="sign-col"><div class="sign-date">' + esc(todayLine()) + '</div><div class="role">Người lập</div><div class="hint">(Ký, ghi rõ họ tên)</div><div class="sign-space"></div><div class="sign-line"></div></div>' +
+        "</div>";
+    }
+    function dowHeaderRow(){
+      var dim = daysInMonth(state.year, state.month), h = '<tr class="dow-row"><th colspan="' + (hideDeptCol() ? 4 : 5) + '"></th>';
+      for (var d = 1; d <= 31; d++){
+        if (d > dim) h += "<th></th>";
+        else {
+          h += '<th class="' + dayHeadClass(state.year, state.month, d) + '">' + esc(isHoliday(state.year, state.month, d) ? "Lễ" : DOW[new Date(state.year, state.month - 1, d).getDay()]) + "</th>";
+        }
+      }
+      return h;
+    }
+    function statHTML(k, v, gold){
+      return '<div class="stat' + (gold ? " gold" : "") + '"><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + "</div></div>";
+    }
+
+    /* ================= RENDER: BẢNG CHẤM CÔNG ================= */
+    /* cột tổng kết trong Data chấm công: AR phép, AS hưởng lương, AT BHXH, AU công tác, AV nghỉ bù, BJ tính cơm, AY tính lương, BG tổng giờ TC */
+    var CC_SUM = [
+      { idx: 43, label: "Phép năm" },
+      { idx: 44, label: "Hưởng Lương/Chế độ" },
+      { idx: 45, label: "Nghỉ chế độ BHXH" },
+      { idx: 46, label: "Công tác" },
+      { idx: 47, label: "Nghỉ bù" },
+      { idx: 61, label: "NGÀY CÔNG TÍNH CƠM" },
+      { idx: 50, label: "NGÀY CÔNG TÍNH LƯƠNG" }
+    ];
+    function ccFiltered(){
+      return state.ccRows.filter(function(v){ return v._entity === state.entityKey; });
+    }
+    function renderCC(){
+      var rows = ccFiltered(), body = $("ccBody"), sum = $("summaryCC");
+      if (!state.ccRows.length){
+        var latest = latestOf(state.ccMonths);
+        sum.innerHTML = "";
+        body.innerHTML = '<div class="empty"><div class="big">Chưa có dữ liệu chấm công tháng ' + state.month + "/" + state.year + "</div>" +
+          (latest ? '<div class="small">Tháng mới nhất có dữ liệu chấm công là tháng ' + latest.m + "/" + latest.y + '.</div><button class="btn primary" type="button" onclick="jumpToMonth(' + latest.m + "," + latest.y + ')">Xem tháng ' + latest.m + "/" + latest.y + "</button>" : "") + "</div>";
+        return;
+      }
+      if (!rows.length){
+        sum.innerHTML = "";
+        body.innerHTML = '<div class="empty"><div class="big">Pháp nhân ' + esc(entityLabel(state.entityKey)) + " tháng " + state.month + "/" + state.year + ' chưa có dữ liệu chấm công</div><div class="small">Vui lòng chọn pháp nhân khác hoặc kiểm tra dữ liệu trên Google Sheets.</div></div>';
+        return;
+      }
+      var totLuong = 0, totPhep = 0, totGioTC = 0;
+      rows.forEach(function(v){
+        totLuong += parseNum(v[50]) || 0;
+        totPhep += parseNum(v[43]) || 0;
+        totGioTC += parseNum(v[58]) || 0;
+      });
+      sum.innerHTML =
+        statHTML("Tổng số nhân viên", fmtNum(rows.length)) +
+        statHTML("Tổng ngày công tính lương", fmtNum(totLuong), true) +
+        statHTML("Tổng phép năm", fmtNum(totPhep)) +
+        statHTML("Tổng giờ tăng ca", fmtNum(totGioTC));
+
+      var cols = state.ccCols || { title: 10, dept: 7 };
+      var hideDept = hideDeptCol();
+      var h = '<div class="sheet-scroll" role="region" aria-label="Bảng chấm công có thể cuộn ngang" tabindex="0"><div class="sheet" id="sheetCC">' + entityHeaderHTML("cc");
+      h += '<table class="cc"><thead><tr><th>TT</th><th>MSNV</th><th class="c-name">HỌ VÀ TÊN</th><th class="c-title">Chức danh</th>' + (hideDept ? "" : '<th class="c-dept">Bộ phận</th>');
+      var d;
+      for (d = 1; d <= 31; d++) h += '<th class="' + dayHeadClass(state.year, state.month, d) + '">' + String(d).padStart(2, "0") + "</th>";
+      CC_SUM.forEach(function(c){ h += "<th>" + esc(c.label) + "</th>"; });
+      h += "</tr>" + dowHeaderRow() + '<th colspan="' + CC_SUM.length + '"></th></tr></thead><tbody>';
+
+      var totals = CC_SUM.map(function(){ return 0; });
+      rows.forEach(function(v, i){
+        h += "<tr><td>" + (i + 1) + '</td><td class="msnv">' + esc(trim(v[5])) + '</td><td class="c-name">' + esc(trim(v[6])) +
+          '</td><td class="c-title">' + esc(titleOf(trim(v[5]), trim(v[cols.title]))) + "</td>" + (hideDept ? "" : '<td class="c-dept">' + esc(trim(v[cols.dept])) + "</td>");
+        for (d = 1; d <= 31; d++){
+          var sun = isSundayOrHoliday(state.year, state.month, d);
+          if (isHoliday(state.year, state.month, d)) h += '<td class="day hol-txt' + (sun ? " sun" : "") + '">Lễ</td>';
+          else h += '<td class="day' + (sun ? " sun" : "") + '">' + esc(trim(v[11 + d])) + "</td>";
+        }
+        CC_SUM.forEach(function(c, ci){
+          var raw = trim(v[c.idx]);
+          totals[ci] += parseNum(raw) || 0;
+          h += '<td class="sum">' + esc(raw === "" ? "-" : raw) + "</td>";
+        });
+        h += "</tr>";
+      });
+      h += '<tr class="total"><td colspan="' + (hideDept ? 4 : 5) + '">TỔNG CỘNG</td>';
+      for (d = 1; d <= 31; d++) h += "<td></td>";
+      totals.forEach(function(t){ h += "<td>" + fmtNum(t) + "</td>"; });
+      h += "</tr></tbody></table>" + signatureHTML() + "</div></div>";
+      body.innerHTML = h;
+    }
+
+    /* ================= RENDER: BẢNG CHẤM CÔNG TĂNG CA ================= */
+    /* Data tăng ca: L–AP ngày 1–31 (idx 11..41), AQ tổng giờ tăng ca (idx 42).
+       Bảng tăng ca chỉ giữ DUY NHẤT cột tổng "Tổng Tăng ca" (các cột tổng theo hệ số/cơm/thoả thuận đã bỏ theo yêu cầu). */
+    var OT_SUM = [
+      { idx: 42, label: "Tổng Tăng ca" }
+    ];
+    function otHasHours(v){
+      if ((parseNum(v[42]) || 0) > 0) return true;
+      for (var d = 0; d < 31; d++) if ((parseNum(v[11 + d]) || 0) > 0) return true;
+      return false;
+    }
+    function otFiltered(){
+      return state.otRows.filter(function(v){ return v._entity === state.entityKey && otHasHours(v); });
+    }
+    function latestOf(list){
+      if (!list.length) return null;
+      return list.slice().sort(function(a, b){ return (b.y - a.y) || (b.m - a.m); })[0];
+    }
+    function renderOT(){
+      var body = $("otBody"), sum = $("summaryOT");
+      var monthRows = state.otRows.filter(otHasHours);
+      var rows = otFiltered();
+      state.otHasData = rows.length > 0;
+      if (!rows.length){
+        sum.innerHTML =
+          statHTML("Số người tăng ca", "—") +
+          statHTML("Tổng giờ tăng ca", "—", true) +
+          statHTML("Tổng cơm tăng ca", "—");
+        var latest = latestOf(state.otMonths);
+        var msg, sub = "";
+        if (!monthRows.length){
+          msg = "Tháng " + state.month + "/" + state.year + " không có tăng ca";
+        } else {
+          msg = "Pháp nhân " + entityLabel(state.entityKey) + " tháng " + state.month + "/" + state.year + " không có tăng ca";
+        }
+        if (latest) sub = '<div class="small">Dữ liệu tăng ca mới nhất là tháng ' + latest.m + "/" + latest.y + '.</div>' +
+          '<button class="btn primary" type="button" onclick="jumpToMonth(' + latest.m + "," + latest.y + ')">Xem tháng ' + latest.m + "/" + latest.y + "</button>";
+        body.innerHTML = '<div class="empty"><div class="big">' + esc(msg) + "</div>" + sub + "</div>";
+        return;
+      }
+      var totGio = 0, totCom = 0;
+      rows.forEach(function(v){ totGio += parseNum(v[42]) || 0; totCom += parseNum(v[49]) || 0; });
+      sum.innerHTML =
+        statHTML("Số người tăng ca", fmtNum(rows.length)) +
+        statHTML("Tổng giờ tăng ca", fmtNum(totGio), true) +
+        statHTML("Tổng cơm tăng ca", fmtNum(totCom));
+
+      var hideDeptOT = hideDeptCol();
+      var h = '<div class="sheet-scroll" role="region" aria-label="Bảng tăng ca có thể cuộn ngang" tabindex="0"><div class="sheet" id="sheetOT">' + entityHeaderHTML("ot");
+      h += '<table class="cc"><thead><tr><th>TT</th><th>MSNV</th><th class="c-name">HỌ VÀ TÊN</th><th class="c-title">Chức danh</th>' + (hideDeptOT ? "" : '<th class="c-dept">Bộ phận</th>');
+      var d;
+      for (d = 1; d <= 31; d++) h += '<th class="' + dayHeadClass(state.year, state.month, d) + '">' + String(d).padStart(2, "0") + "</th>";
+      OT_SUM.forEach(function(c){ h += "<th>" + esc(c.label) + "</th>"; });
+      h += "</tr>" + dowHeaderRow() + '<th colspan="' + OT_SUM.length + '"></th></tr></thead><tbody>';
+
+      var totals = OT_SUM.map(function(){ return 0; });
+      rows.forEach(function(v, i){
+        h += "<tr><td>" + (i + 1) + '</td><td class="msnv">' + esc(trim(v[4])) + '</td><td class="c-name">' + esc(trim(v[5])) +
+          '</td><td class="c-title">' + esc(titleOf(trim(v[4]), trim(v[8]))) + "</td>" + (hideDeptOT ? "" : '<td class="c-dept">' + esc(trim(v[6])) + "</td>");
+        for (d = 1; d <= 31; d++){
+          var sun = isSundayOrHoliday(state.year, state.month, d);
+          var raw = trim(v[10 + d]);
+          h += '<td class="day' + (sun ? " sun" : "") + '">' + esc(raw === "" ? "" : raw) + "</td>";
+        }
+        OT_SUM.forEach(function(c, ci){
+          var raw2 = trim(v[c.idx]);
+          totals[ci] += parseNum(raw2) || 0;
+          h += '<td class="sum">' + esc(raw2 === "" ? "-" : raw2) + "</td>";
+        });
+        h += "</tr>";
+      });
+      h += '<tr class="total"><td colspan="' + (hideDeptOT ? 4 : 5) + '">TỔNG CỘNG</td>';
+      for (d = 1; d <= 31; d++) h += "<td></td>";
+      totals.forEach(function(t){ h += "<td>" + fmtNum(t) + "</td>"; });
+      h += "</tr></tbody></table>" + signatureHTML() + "</div></div>";
+      body.innerHTML = h;
+    }
+    function jumpToMonth(m, y){
+      state.month = m; state.year = y;
+      $("selMonth").value = String(m);
+      if ($("selYear").querySelector('option[value="' + y + '"]')) $("selYear").value = String(y);
+      loadMonth(true);
+    }
+    /* ================= EXPORT: file-ready bar (cơ chế như app Báo cáo nhân sự) ================= */
+    var readyTimer = null;
+    function saveBlobFile(blob, filename){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      $("readyText").textContent = "Đã tạo file " + filename + " —";
+      var link = $("readyLink");
+      link.href = url; link.setAttribute("download", filename);
+      $("readyBar").classList.add("show");
+      clearTimeout(readyTimer);
+      readyTimer = setTimeout(function(){ $("readyBar").classList.remove("show"); URL.revokeObjectURL(url); link.removeAttribute("href"); }, 90000);
+    }
+    var noticeTimer = null;
+    function showNotice(msg){
+      var bar = $("noticeBar");
+      bar.textContent = msg;
+      bar.classList.add("show");
+      clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(function(){ bar.classList.remove("show"); }, 5000);
+    }
+    function fileBase(kind){
+      return (kind === "cc" ? "Bang_cham_cong_" : "Bang_cham_cong_tang_ca_") + stripDiac(entityLabel(state.entityKey)) + "_" + String(state.month).padStart(2, "0") + "-" + state.year;
+    }
+    function exportExcel(kind){
+      if (typeof ExcelJS === "undefined"){ showNotice("Chưa tải được thư viện Excel, vui lòng thử lại sau giây lát."); return; }
+      var isCC = kind === "cc";
+      var rows = isCC ? ccFiltered() : otFiltered();
+      var SUM = isCC ? CC_SUM : OT_SUM;
+      var hideDept = hideDeptCol();
+      var NFIX = hideDept ? 4 : 5;   /* số cột cố định đầu bảng (bỏ cột Bộ phận -> 4), cũng là chỉ số 0-based của cột ngày 01 */
+      var e = state.entities[state.entityKey] || {};
+      var aoa = [];
+      aoa.push([entityFullName(state.entityKey) || entityLabel(state.entityKey)]);
+      aoa.push([trim(e.addr)]);
+      aoa.push([(isCC ? "BẢNG CHẤM CÔNG" : "BẢNG CHẤM CÔNG TĂNG CA") + " THÁNG " + state.month + " NĂM " + state.year]);
+      var head = ["TT", "MSNV", "HỌ VÀ TÊN", "Chức danh"], d;
+      if (!hideDept) head.push("Bộ phận");
+      for (d = 1; d <= 31; d++) head.push(String(d).padStart(2, "0"));
+      SUM.forEach(function(c){ head.push(c.label); });
+      aoa.push(head);
+      var dow = [];
+      for (var fi = 0; fi < NFIX; fi++) dow.push("");
+      for (d = 1; d <= 31; d++) dow.push(d <= daysInMonth(state.year, state.month) ? (isHoliday(state.year, state.month, d) ? "Lễ" : DOW[new Date(state.year, state.month - 1, d).getDay()].replace(" ", "\n")) : "");
+      SUM.forEach(function(){ dow.push(""); });
+      aoa.push(dow);
+      var cols = state.ccCols || { title: 10, dept: 7 };
+      var totals = SUM.map(function(){ return 0; });
+      rows.forEach(function(v, i){
+        var r = [i + 1, isCC ? trim(v[5]) : trim(v[4]), isCC ? trim(v[6]) : trim(v[5]),
+                 isCC ? titleOf(trim(v[5]), trim(v[cols.title])) : titleOf(trim(v[4]), trim(v[8]))];
+        if (!hideDept) r.push(isCC ? trim(v[cols.dept]) : trim(v[6]));
+        for (d = 1; d <= 31; d++) r.push(isCC ? (isHoliday(state.year, state.month, d) ? "Lễ" : trim(v[11 + d])) : trim(v[10 + d]));
+        SUM.forEach(function(c, ci){
+          var raw = trim(v[c.idx]);
+          var n = parseNum(raw);
+          totals[ci] += n || 0;
+          r.push(n == null ? (raw || "-") : n);
+        });
+        aoa.push(r);
+      });
+      var tr = ["", "", "TỔNG CỘNG", ""];
+      if (!hideDept) tr.push("");
+      for (d = 1; d <= 31; d++) tr.push("");
+      totals.forEach(function(t){ tr.push(t); });
+      aoa.push(tr);
+      /* ---- khối chữ ký trong Excel đúng file mẫu Cờ Đỏ T1/2026: trái "PHÊ DUYỆT" gộp D:U,
+         phải ngày tháng năm + "NGƯỜI LẬP" gộp V:AM (bảng 43 cột A–AQ); bảng ít cột hơn
+         (tăng ca / ẩn Bộ phận) thu theo cùng tỉ lệ: khối trái bắt đầu ở cột D, giao nhau giữa bảng,
+         khối phải kết thúc chừa 4 cột cuối. ---- */
+      var NCOL = head.length;
+      var SIG_L0 = 3, SIG_L1 = Math.floor(NCOL / 2) - 1, SIG_R0 = SIG_L1 + 1, SIG_R1 = NCOL - 5;
+      var MID = SIG_R0;
+      /* Vừa trang A4 ngang nhờ cài đặt in của file mẫu (scale=46, fitToPage, fitToHeight=0, không fitToWidth) — xem phần dựng workbook bên dưới. */
+      /* ĐỘ RỘNG CỘT CỐ ĐỊNH đúng file mẫu (không tự co/dãn nữa): TT=4, MSNV=11, Họ và tên=24,
+         Chức danh/Bộ phận=18, ngày 01–31=4.25, các cột tổng=10.5 — dùng cho mọi tháng/pháp nhân,
+         kể cả khi ẩn cột Bộ phận (các cột còn lại giữ nguyên độ rộng). */
+      function colW(i){ return i === 0 ? 4 : i === 1 ? 11 : i === 2 ? 24 : i < NFIX ? 18 : (i >= NFIX && i < NFIX + 31) ? 4.25 : 10.5; }
+      var HEAD_R = 3, DOW_R = 4, DATA0 = 5;
+      var totalR = DATA0 + rows.length;
+      var sigDateR = totalR + 2, sigRoleR = totalR + 3, sigHintR = totalR + 4, sigNameR = totalR + 8;
+      function sigRow(leftVal, rightVal){
+        var r = [];
+        for (var ci = 0; ci < NCOL; ci++) r.push("");
+        r[SIG_L0] = leftVal || ""; r[SIG_R0] = rightVal || "";
+        return r;
+      }
+      aoa.push([]);
+      aoa.push(sigRow("", todayLine()));
+      aoa.push(sigRow("PHÊ DUYỆT", "NGƯỜI LẬP"));
+      aoa.push(sigRow("(Ký, ghi rõ họ tên)", "(Ký, ghi rõ họ tên)"));
+      aoa.push(sigRow("", "")); aoa.push(sigRow("", "")); aoa.push(sigRow("", ""));
+      aoa.push(sigRow("................................", "................................"));
+      /* ---- dựng workbook bằng ExcelJS (ghi được cả kiểu ô lẫn cài đặt trang in A4) ---- */
+      var wb = new ExcelJS.Workbook();
+      var ws = wb.addWorksheet(isCC ? "Bang cham cong" : "Bang cham cong TC", {
+        pageSetup: { paperSize: 9, orientation: "landscape", scale: 46, fitToHeight: 0, fitToPage: true, fitToWidth: undefined }
+      });
+      /* cài đặt in đúng file mẫu: A4 ngang, scale=46, fitToPage=1, fitToHeight=0 và KHÔNG có fitToWidth
+         (fitToWidth: undefined ở trên để ExcelJS bỏ hẳn thuộc tính này khỏi file, như file mẫu) */
+      ws.pageSetup.scale = 46;
+      if (ws.sheetProperties) ws.sheetProperties.pageSetUpPr = { fitToPage: true };
+      ws.pageSetup.margins = { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
+      ws.pageSetup.printTitlesRow = "4:5";
+      aoa.forEach(function(rowArr, r){
+        rowArr.forEach(function(v, c){
+          if (v !== "" && v != null) ws.getRow(r + 1).getCell(c + 1).value = v;
+        });
+      });
+      /* gộp ô: tiêu đề + 2 cột chữ ký (ExcelJS dùng chỉ số 1-based) */
+      ws.mergeCells(1, 1, 1, NCOL);
+      ws.mergeCells(2, 1, 2, NCOL);
+      ws.mergeCells(3, 1, 3, NCOL);
+      [sigRoleR, sigHintR, sigNameR].forEach(function(sr){
+        ws.mergeCells(sr + 1, SIG_L0 + 1, sr + 1, SIG_L1 + 1);
+        ws.mergeCells(sr + 1, SIG_R0 + 1, sr + 1, SIG_R1 + 1);
+      });
+      ws.mergeCells(sigDateR + 1, SIG_R0 + 1, sigDateR + 1, SIG_R1 + 1);
+      head.forEach(function(hh, i){
+        ws.getColumn(i + 1).width = colW(i);
+      });
+      ws.getRow(1).height = 20.1; ws.getRow(3).height = 21.95; ws.getRow(HEAD_R + 1).height = 32.1; ws.getRow(DOW_R + 1).height = 22.5;
+      /* chiều cao hàng dữ liệu như file mẫu: để mặc định khi chữ vừa 1 dòng; hàng nào chữ ở cột
+         Họ tên / Chức danh / Bộ phận phải xuống dòng thì cao 12pt mỗi dòng (2 dòng = 24 như file mẫu) */
+      function linesFor(txt, w){
+        var cpl = Math.max(4, Math.floor((w * 7 + 5) / 5.6));
+        return Math.max(1, Math.ceil(String(txt || "").length / cpl));
+      }
+      rows.forEach(function(v, rj){
+        var nm = isCC ? trim(v[6]) : trim(v[5]);
+        var tt = isCC ? titleOf(trim(v[5]), trim(v[cols.title])) : titleOf(trim(v[4]), trim(v[8]));
+        var ln = Math.max(linesFor(nm, colW(2)), linesFor(tt, colW(3)));
+        if (!hideDept) ln = Math.max(ln, linesFor(isCC ? trim(v[cols.dept]) : trim(v[6]), colW(NFIX - 1)));
+        if (ln > 1) ws.getRow(DATA0 + rj + 1).height = Math.min(48, ln * 12);
+      });
+      ws.getRow(totalR + 1).height = 15.95; ws.getRow(sigRoleR + 1).height = 15.95;
+      for (var sr2 = sigHintR + 1; sr2 < sigNameR; sr2++) ws.getRow(sr2 + 1).height = 15;
+      /* ---- tô màu file Excel: tông NHẠT, toàn bộ chữ ĐEN, viền xám nhạt (chỉ file Excel — giao diện web giữ nguyên) ---- */
+      var thinSide = { style: "thin", color: { argb: "FFC9C9C9" } };
+      var borderAll = { top: thinSide, bottom: thinSide, left: thinSide, right: thinSide };
+      function FILL(hex){ return { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + hex } }; }
+      function FONT(o){ o.name = "Times New Roman"; o.color = { argb: "FF" + (o.color || "000000") }; return o; }
+      function setSt(r, c, st){ var cell = ws.getRow(r + 1).getCell(c + 1); if (st.font) cell.font = st.font; if (st.fill) cell.fill = st.fill; if (st.alignment) cell.alignment = st.alignment; if (st.border) cell.border = st.border; }
+      setSt(0, 0, { font: FONT({ size: 13, bold: true }), alignment: { horizontal: "left", vertical: "middle" } });
+      setSt(1, 0, { font: FONT({ size: 10 }), alignment: { horizontal: "left", vertical: "middle" } });
+      setSt(2, 0, { font: FONT({ size: 14, bold: true }), alignment: { horizontal: "center", vertical: "middle" } });
+      var ci2, rj;
+      for (ci2 = 0; ci2 < NCOL; ci2++){
+        var sunH = ci2 >= NFIX && ci2 < NFIX + 31 && isSundayOrHoliday(state.year, state.month, ci2 - NFIX + 1);
+        var holH = ci2 >= NFIX && ci2 < NFIX + 31 && isHoliday(state.year, state.month, ci2 - NFIX + 1);
+        setSt(HEAD_R, ci2, { font: FONT({ size: 9, bold: true, color: holH ? "C0392B" : undefined }), fill: FILL(sunH ? "FFFDE7" : "D9EAD3"), alignment: { horizontal: "center", vertical: "middle", wrapText: true }, border: borderAll });
+        setSt(DOW_R, ci2, { font: FONT({ size: 8, bold: !!holH, color: holH ? "C0392B" : undefined }), fill: FILL(sunH ? "FFFDE7" : "E2EFDA"), alignment: { horizontal: "center", vertical: "middle", wrapText: true }, border: borderAll });
+      }
+      for (rj = 0; rj < rows.length; rj++){
+        var rr = DATA0 + rj, zebra = (rj % 2 === 1);
+        for (ci2 = 0; ci2 < NCOL; ci2++){
+          var sunB = ci2 >= NFIX && ci2 < NFIX + 31 && isSundayOrHoliday(state.year, state.month, ci2 - NFIX + 1);
+          var fillB = sunB ? "FFFDE7" : (zebra ? "F7FAF7" : "FFFFFF");
+          var isText = (ci2 >= 2 && ci2 < NFIX), isSum = ci2 >= NFIX + 31;
+          var holB = isCC && ci2 >= NFIX && ci2 < NFIX + 31 && isHoliday(state.year, state.month, ci2 - NFIX + 1);
+          var isDay = ci2 >= NFIX && ci2 < NFIX + 31;
+          setSt(rr, ci2, { font: FONT({ size: 9, bold: holB ? true : !!isSum, color: holB ? "C0392B" : undefined }), fill: FILL(fillB), alignment: { horizontal: isText ? "left" : "center", vertical: "middle", wrapText: isText }, border: borderAll });
+        }
+      }
+      for (ci2 = 0; ci2 < NCOL; ci2++){
+        setSt(totalR, ci2, { font: FONT({ size: 9, bold: true }), fill: FILL("FEF9E7"), alignment: { horizontal: ci2 === 2 ? "left" : "center", vertical: "middle" }, border: borderAll });
+      }
+      setSt(sigDateR, SIG_R0, { font: FONT({ size: 10, italic: true }), alignment: { horizontal: "center", vertical: "middle" } });
+      setSt(sigRoleR, SIG_L0, { font: FONT({ size: 11, bold: true }), alignment: { horizontal: "center", vertical: "middle" } });
+      setSt(sigRoleR, SIG_R0, { font: FONT({ size: 11, bold: true }), alignment: { horizontal: "center", vertical: "middle" } });
+      setSt(sigHintR, SIG_L0, { font: FONT({ size: 9, italic: true }), alignment: { horizontal: "center", vertical: "middle" } });
+      setSt(sigHintR, SIG_R0, { font: FONT({ size: 9, italic: true }), alignment: { horizontal: "center", vertical: "middle" } });
+      setSt(sigNameR, SIG_L0, { font: FONT({ size: 10 }), alignment: { horizontal: "center", vertical: "middle" } });
+      setSt(sigNameR, SIG_R0, { font: FONT({ size: 10 }), alignment: { horizontal: "center", vertical: "middle" } });
+      wb.xlsx.writeBuffer().then(function(buf){
+        saveBlobFile(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), fileBase(kind) + ".xlsx");
+      }).catch(function(){ showNotice("Không tạo được file Excel, vui lòng thử lại giúp em."); });
+    }
+    function exportPNG(kind){
+      var el = $(kind === "cc" ? "sheetCC" : "sheetOT");
+      if (!el || typeof html2canvas === "undefined"){ showNotice("Chưa sẵn sàng tạo ảnh, vui lòng thử lại sau giây lát."); return; }
+      showNotice("Đang tạo ảnh PNG…");
+      /* Chụp theo kích thước THẬT của toàn bộ bảng (scrollWidth/scrollHeight), không theo khung nhìn:
+         tạm mở khung cuộn ngang ra hết bề rộng bảng + ép bản sao của html2canvas hiển thị đủ
+         mọi cột (01–31, các cột tổng cuối) và khối chữ ký, rồi khôi phục ngay sau khi chụp. */
+      var wrap = el.parentElement;
+      var fullW = Math.max(el.scrollWidth, el.offsetWidth);
+      var fullH = Math.max(el.scrollHeight, el.offsetHeight);
+      var scale = Math.min(2, Math.max(1, 2600 / fullW));
+      var prev = wrap ? { overflow: wrap.style.overflow, width: wrap.style.width, maxWidth: wrap.style.maxWidth } : null;
+      if (wrap){ wrap.style.overflow = "visible"; wrap.style.width = fullW + "px"; wrap.style.maxWidth = "none"; }
+      function restore(){ if (wrap && prev){ wrap.style.overflow = prev.overflow; wrap.style.width = prev.width; wrap.style.maxWidth = prev.maxWidth; } }
+      html2canvas(el, {
+        scale: scale, backgroundColor: "#ffffff", logging: false,
+        width: fullW, height: fullH, windowWidth: fullW + 48, windowHeight: fullH + 48,
+        scrollX: 0, scrollY: 0,
+        onclone: function(clonedDoc){
+          var cel = clonedDoc.getElementById(el.id);
+          if (cel){ cel.style.width = fullW + "px"; cel.style.minWidth = fullW + "px"; }
+          var sc = clonedDoc.querySelectorAll(".sheet-scroll");
+          for (var i = 0; i < sc.length; i++){ sc[i].style.overflow = "visible"; sc[i].style.width = fullW + "px"; sc[i].style.maxWidth = "none"; }
+        }
+      }).then(function(canvas){
+        restore();
+        canvas.toBlob(function(blob){
+          if (blob) saveBlobFile(blob, fileBase(kind) + ".png");
+          else showNotice("Không tạo được ảnh PNG, vui lòng thử lại giúp em.");
+        }, "image/png");
+      }).catch(function(){ restore(); showNotice("Không tạo được ảnh PNG, vui lòng thử lại giúp em."); });
+    }
+    function guardOT(){
+      if (!state.otHasData){ showNotice("Tháng này không có tăng ca nên không có bảng để tải/in"); return false; }
+      return true;
+    }
+    /* ================= IN BẢNG =================
+       Lệnh in trực tiếp bị khung xem trước (iframe) của Muse chặn nên trước đây bấm không có phản hồi.
+       Nút In giờ mở bảng ở một thẻ/trang mới chỉ chứa phần bảng, đã định dạng sẵn khổ A4 ngang —
+       ở thẻ mới đó, chị bấm Ctrl+P (hoặc menu trình duyệt → In) là in được bình thường.
+       Nếu trình duyệt chặn thẻ mới thì app báo rõ lý do thay vì im lặng như trước. */
+    function printSheet(kind){
+      if (kind === "ot" && !guardOT()) return;
+      setTab(kind);
+      var el = $(kind === "cc" ? "sheetCC" : "sheetOT");
+      if (!el){
+        showNotice(kind === "cc" ? "Chưa có bảng chấm công để in cho kỳ/pháp nhân đang chọn." : "Chưa có bảng tăng ca để in cho kỳ/pháp nhân đang chọn.");
+        return;
+      }
+      var title = (kind === "cc" ? "Bảng chấm công" : "Bảng chấm công tăng ca") + " tháng " + state.month + "/" + state.year + " — " + entityLabel(state.entityKey);
+      var css =
+        '@page{size:A4 landscape;margin:7mm}' +
+        'body{font-family:"Times New Roman",Times,serif;margin:10px;color:#14231a}' +
+        '.pbar{margin:0 0 12px;padding:10px 12px;background:#e8f3ea;border:1px solid #17693a;border-radius:8px;font-size:13.5px}' +
+        '.pbar button{font:inherit;font-weight:700;background:#17693a;color:#fff;border:0;border-radius:7px;padding:8px 16px;cursor:pointer;margin-right:10px}' +
+        '.sheet{background:#fff}' +
+        '.ent-name{font-size:16.5px;font-weight:800;text-transform:uppercase;color:#0e4d29}' +
+        '.ent-addr{font-size:12.5px;color:#43564a;margin-top:2px}' +
+        'h1{text-align:center;font-size:19px;font-weight:800;color:#0e4d29;margin:14px 0 10px}' +
+        'table.cc{border-collapse:collapse;width:100%;font-size:10.5px}' +
+        'table.cc th,table.cc td{border:1px solid #9db8a4;padding:2.5px 2px;text-align:center;vertical-align:middle}' +
+        'table.cc thead th{background:#17693a;color:#fff;font-weight:700}' +
+        'table.cc thead .dow-row th{background:#2c7d4b;font-weight:500;font-size:8.5px}' +
+        'table.cc th.c-name,table.cc td.c-name{text-align:left;padding-left:5px}' +
+        'table.cc th.c-title,table.cc td.c-title,table.cc th.c-dept,table.cc td.c-dept{text-align:left;padding-left:4px;font-size:9.5px}' +
+        'table.cc thead th.c-name,table.cc thead th.c-title,table.cc thead th.c-dept{text-align:center}' +
+        'table.cc td.day{font-size:9.5px}' +
+        'table.cc td.sun,table.cc th.sun{background:#fdf3d3}' +
+        'table.cc thead th.sun{background:#8a6d1f}' +
+        'table.cc thead .dow-row th.sun{background:#a8892f}' +
+        'table.cc td.sum{font-weight:600}' +
+        'table.cc tbody tr:nth-child(even) td{background:#f2f8f2}' +
+        'table.cc tbody tr td.sun{background:#fdf3d3}' +
+        'table.cc tr.total td{background:#fdf3d3;font-weight:800}' +
+        'table.cc thead th.hol{background:#fdeeda;color:#c0392b;font-weight:800}' +
+        'table.cc thead .dow-row th.hol{background:#f7e3c2;color:#c0392b;font-weight:700}' +
+        'table.cc td.hol-txt{color:#c0392b;font-weight:700}' +
+        '.sign{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:18px;font-size:12.5px;padding-left:4.42cm;padding-right:4.42cm}' +
+        '.sign-col{text-align:center}' +
+        '.sign-date{font-style:italic;min-height:18px;margin-bottom:6px}' +
+        '.sign .role{font-weight:700;text-transform:uppercase}' +
+        '.sign .hint{font-style:italic;font-size:11px;color:#43564a;margin-top:2px}' +
+        '.sign-space{height:64px}' +
+        '.sign-line{width:55%;margin:0 auto;border-bottom:1px dotted #9db8a4}' +
+        '@media print{.pbar{display:none}body{margin:0}table.cc{font-size:6.8px}table.cc th,table.cc td{padding:1.4px 1px}table.cc td.day{font-size:6.4px}h1{font-size:14px}.ent-name{font-size:12px}.sign{font-size:9px;padding-left:43mm;padding-right:43mm}.sign-space{height:36px}}';
+      var html = '<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>' + css + '</style></head><body>' +
+        '<div class="pbar"><b>Trang in đã sẵn sàng (khổ A4 ngang).</b> Bấm <b>Ctrl+P</b> (trên Mac: <b>Cmd+P</b>) hoặc mở menu trình duyệt → <b>In</b> để in / lưu PDF.</div>' +
+        el.outerHTML +
+        '</body></html>';
+      var w = null;
+      try { w = window.open("", "_blank"); } catch(e){ w = null; }
+      if (w && w.document){
+        w.document.open();
+        w.document.write(html);
+        w.document.close();
+        showNotice("Đã mở trang in ở thẻ mới — trong thẻ đó chị bấm Ctrl+P để in / lưu PDF.");
+      } else {
+        showNotice("Trình duyệt đang chặn mở thẻ mới nên chưa mở được trang in. Vui lòng cho phép mở thẻ/popup cho trang này rồi bấm In lại, hoặc tải file Excel rồi in từ Excel.");
+      }
+    }
+
+    /* ================= SELECTORS & LOAD FLOW ================= */
+    function buildMonthYearSelectors(){
+      var ys = {};
+      state.ccMonths.concat(state.otMonths).forEach(function(x){ ys[x.y] = 1; });
+      if (!Object.keys(ys).length) ys[state.year] = 1;
+      var selY = $("selYear");
+      selY.innerHTML = Object.keys(ys).sort().map(function(y){ return '<option value="' + y + '">' + y + "</option>"; }).join("");
+      selY.value = String(state.year);
+      var selM = $("selMonth");
+      selM.innerHTML = Array.from({ length: 12 }, function(_, i){ return '<option value="' + (i + 1) + '">Tháng ' + (i + 1) + "</option>"; }).join("");
+      selM.value = String(state.month);
+    }
+    function buildEntitySelector(){
+      var keys = Object.keys(state.entities).filter(function(k){
+        return entityHasFullInfo(k) && (state.ccRows.some(function(v){ return v._entity === k; }) || state.otRows.some(function(v){ return v._entity === k; }));
+      });
+      keys.sort(function(a, b){
+        if (a === "__none") return 1; if (b === "__none") return -1;
+        return entityLabel(a).localeCompare(entityLabel(b), "vi");
+      });
+      var sel = $("selEntity");
+      sel.innerHTML = keys.map(function(k){ return '<option value="' + esc(k) + '">' + esc(entityLabel(k)) + "</option>"; }).join("");
+      if (keys.indexOf(state.entityKey) < 0){
+        var hp = keys.filter(function(k){ return entityLabel(k) === "Hạnh Phúc"; })[0];
+        state.entityKey = hp || keys[0] || "__none";
+      }
+      sel.value = state.entityKey;
+    }
+    function renderAll(){
+      refreshEntityDisplays();
+      buildEntitySelector();
+      renderCC();
+      renderOT();
+    }
+    function showError(msg){
+      var el = $("errLine");
+      el.textContent = msg;
+      el.classList.add("show");
+    }
+    function hideError(){ $("errLine").classList.remove("show"); }
+    function loadMonth(keepEntity){
+      var seq = ++loadSeq;
+      var requestedMonth = state.month, requestedYear = state.year;
+      var tq = "select * where A = " + state.month + " and B = " + state.year;
+      $("syncLine").textContent = "Đang tải dữ liệu tháng " + state.month + "/" + state.year + "…";
+      return Promise.all([
+        loadTable("cc", tq),
+        loadTable("ot", tq).then(function(tbl){ return tbl; })
+      ]).then(function(res){
+        if (seq !== loadSeq || requestedMonth !== state.month || requestedYear !== state.year) return;
+        ingestCC(res[0]);
+        ingestOT(res[1]);
+        hideError();
+        state.loaded = true;
+        if (!keepEntity) { /* giữ pháp nhân đang chọn nếu còn trong tháng mới */ }
+        renderAll();
+        $("syncLine").innerHTML = "Đã cập nhật dữ liệu lúc <b>" + nowStamp() + "</b> — " + state.ccRows.length + " dòng chấm công, " + state.otRows.length + " dòng tăng ca (tháng " + state.month + "/" + state.year + ")";
+      }).catch(function(err){
+        if (seq !== loadSeq) return;
+        if (state.loaded){
+          showError("Không tải được dữ liệu mới (" + err.message + "). Đang giữ dữ liệu cũ trên màn hình.");
+        } else {
+          showError("Chưa tải được dữ liệu từ Google Sheet (" + err.message + "). Vui lòng kiểm tra mạng rồi bấm \"Tải dữ liệu mới nhất\" để thử lại.");
+          $("ccBody").innerHTML = '<div class="loading">Chưa tải được dữ liệu. Vui lòng kiểm tra mạng rồi bấm "Tải dữ liệu mới nhất".</div>';
+          $("otBody").innerHTML = "";
+        }
+      });
+    }
+    function loadMeta(preserveSelection){
+      var chosenMonth = state.month, chosenYear = state.year;
+      var p1 = loadTable("data").then(ingestDataTab);
+      var p2 = loadTable("cc", "select A, B").then(function(tbl){
+        var seen = {};
+        tbl.rows.forEach(function(r){
+          var m = parseNum(cellStr(r.c[0])), y = parseNum(cellStr(r.c[1]));
+          if (m && y) seen[y + "-" + m] = { y: y, m: m };
+        });
+        state.ccMonths = Object.values(seen);
+      });
+      var p3 = loadTable("ot", "select A, B").then(function(tbl){
+        var seen = {};
+        tbl.rows.forEach(function(r){
+          var m = parseNum(cellStr(r.c[0])), y = parseNum(cellStr(r.c[1]));
+          if (m && y) seen[y + "-" + m] = { y: y, m: m };
+        });
+        state.otMonths = Object.values(seen);
+      });
+      var p4 = loadTable("holiday").then(ingestHolidays).catch(function(){ /* không đọc được danh sách ngày lễ thì tháng đó không đánh dấu lễ */ });
+      return Promise.all([p1, p2, p3, p4]).then(function(){
+        /* tháng mặc định: tháng chấm công mới nhất */
+        var latest = latestOf(state.ccMonths);
+        if (latest && !preserveSelection){ state.month = latest.m; state.year = latest.y; }
+        else if (preserveSelection){ state.month = chosenMonth; state.year = chosenYear; }
+        buildMonthYearSelectors();
+      });
+    }
+
+    /* ================= EVENTS ================= */
+    function setTab(tab){
+      state.tab = tab;
+      document.body.setAttribute("data-tab", tab);
+      $("tabBtnCC").classList.toggle("active", tab === "cc");
+      $("tabBtnOT").classList.toggle("active", tab === "ot");
+      $("sectionCC").classList.toggle("hidden", tab !== "cc");
+      $("sectionOT").classList.toggle("hidden", tab !== "ot");
+    }
+    $("tabBtnCC").addEventListener("click", function(){ setTab("cc"); });
+    $("tabBtnOT").addEventListener("click", function(){ setTab("ot"); });
+    $("selMonth").addEventListener("change", function(){ state.month = +this.value; loadMonth(true); });
+    $("selYear").addEventListener("change", function(){ state.year = +this.value; loadMonth(true); });
+    $("selEntity").addEventListener("change", function(){ state.entityKey = this.value; renderCC(); renderOT(); });
+    $("btnSync").addEventListener("click", function(){ loadMeta(true).then(function(){ loadMonth(true); }).catch(function(err){ showError("Không đồng bộ được dữ liệu: " + err.message); }); });
+    $("btnPrintCC").addEventListener("click", function(){ printSheet("cc"); });
+    $("btnPrintOT").addEventListener("click", function(){ printSheet("ot"); });
+    $("btnExcelCC").addEventListener("click", function(){ exportExcel("cc"); });
+    $("btnPngCC").addEventListener("click", function(){ exportPNG("cc"); });
+    $("btnExcelOT").addEventListener("click", function(){ if (guardOT()) exportExcel("ot"); });
+    $("btnPngOT").addEventListener("click", function(){ if (guardOT()) exportPNG("ot"); });
+    $("readyClose").addEventListener("click", function(){ $("readyBar").classList.remove("show"); });
+
+    /* ================= INIT ================= */
+    buildMonthYearSelectors();
+    loadMeta().then(function(){ return loadMonth(false); }).catch(function(){
+      /* meta lỗi vẫn thử tải tháng mặc định 10/2026 */
+      loadMonth(false);
+    });
+</script>
+  </body>
+</html>
