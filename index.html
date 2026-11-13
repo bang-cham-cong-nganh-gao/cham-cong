@@ -8,6 +8,8 @@
     <title>Bảng Chấm Công Ngành Gạo</title>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.20/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.20/vfs_fonts.min.js"></script>
     <style>
       :root{
         --green:#17693a; --green-dark:#0e4d29; --green-pale:#e8f3ea; --green-soft:#f2f8f2;
@@ -207,7 +209,7 @@
       <section id="sectionCC">
         <div class="summary no-print" id="summaryCC"></div>
         <div class="actions no-print">
-          <button class="btn" id="btnPrintCC" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>In bảng</button>
+          <button class="btn" id="btnPrintCC" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>In PDF A4</button>
           <button class="btn" id="btnExcelCC" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 6 6M15 15l-6 6"/></svg>Tải Excel</button>
           <button class="btn" id="btnPngCC" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>Tải ảnh PNG</button>
         </div>
@@ -219,7 +221,7 @@
       <section id="sectionOT" class="hidden">
         <div class="summary no-print" id="summaryOT"></div>
         <div class="actions no-print">
-          <button class="btn" id="btnPrintOT" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>In bảng</button>
+          <button class="btn" id="btnPrintOT" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>In PDF A4</button>
           <button class="btn" id="btnExcelOT" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 6 6M15 15l-6 6"/></svg>Tải Excel</button>
           <button class="btn" id="btnPngOT" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>Tải ảnh PNG</button>
         </div>
@@ -919,77 +921,113 @@
       if (!state.otHasData){ showNotice("Tháng này không có tăng ca nên không có bảng để tải/in"); return false; }
       return true;
     }
-    /* ================= IN BẢNG =================
-       Lệnh in trực tiếp bị khung xem trước (iframe) của Muse chặn nên trước đây bấm không có phản hồi.
-       Nút In giờ mở bảng ở một thẻ/trang mới chỉ chứa phần bảng, đã định dạng sẵn khổ A4 ngang —
-       ở thẻ mới đó, chị bấm Ctrl+P (hoặc menu trình duyệt → In) là in được bình thường.
-       Nếu trình duyệt chặn thẻ mới thì app báo rõ lý do thay vì im lặng như trước. */
+    /* ================= XUẤT PDF A4 VECTOR ĐỂ IN =================
+       PDF được dựng từ dữ liệu thực, không dùng ảnh hay Chrome window.print().
+       Vì thế KHÔNG có ngày giờ / URL / tên trang do trình duyệt chèn vào.
+       Mỗi trang PDF là A4 ngang; bảng nhiều nhân sự tự phân trang, lặp tiêu đề cột. */
     function printSheet(kind){
       if (kind === "ot" && !guardOT()) return;
       setTab(kind);
-      var el = $(kind === "cc" ? "sheetCC" : "sheetOT");
-      if (!el){
-        showNotice(kind === "cc" ? "Chưa có bảng chấm công để in cho kỳ/pháp nhân đang chọn." : "Chưa có bảng tăng ca để in cho kỳ/pháp nhân đang chọn.");
+      var rows = kind === "cc" ? ccFiltered() : otFiltered();
+      if (!rows.length){ showNotice("Chưa có dữ liệu để in cho pháp nhân và kỳ đang chọn."); return; }
+      if (typeof pdfMake === "undefined" || !pdfMake.createPdf){
+        showNotice("Không tải được thư viện PDF. Vui lòng kiểm tra kết nối mạng rồi tải lại trang.");
         return;
       }
-      var title = (kind === "cc" ? "Bảng chấm công" : "Bảng chấm công tăng ca") + " tháng " + state.month + "/" + state.year + " — " + entityLabel(state.entityKey);
-      var css =
-        '@page{size:A4 landscape;margin:0}' +
-        'body{font-family:"Times New Roman",Times,serif;margin:10px;color:#14231a}' +
-        '.pbar{margin:0 0 12px;padding:10px 12px;background:#e8f3ea;border:1px solid #17693a;border-radius:8px;font-size:13.5px}' +
-        '.pbar button{font:inherit;font-weight:700;background:#17693a;color:#fff;border:0;border-radius:7px;padding:8px 16px;cursor:pointer;margin-right:10px}' +
-        '.sheet{background:#fff}' +
-        '.ent-name{font-size:16.5px;font-weight:800;text-transform:uppercase;color:#0e4d29}' +
-        '.ent-addr{font-size:12.5px;color:#43564a;margin-top:2px}' +
-        'h1{text-align:center;font-size:19px;font-weight:800;color:#0e4d29;margin:14px 0 10px}' +
-        'table.cc{border-collapse:collapse;width:100%;font-size:10.5px}' +
-        'table.cc th,table.cc td{border:1px solid #000;padding:2.5px 2px;text-align:center;vertical-align:middle}' +
-        'table.cc thead th{background:#17693a;color:#fff;font-weight:700}' +
-        'table.cc thead .dow-row th{background:#2c7d4b;font-weight:500;font-size:8.5px}' +
-        'table.cc th.c-name,table.cc td.c-name{text-align:left;padding-left:5px}' +
-        'table.cc th.c-title,table.cc td.c-title,table.cc th.c-dept,table.cc td.c-dept{text-align:left;padding-left:4px;font-size:9.5px}' +
-        'table.cc thead th.c-name,table.cc thead th.c-title,table.cc thead th.c-dept{text-align:center}' +
-        'table.cc td.day{font-size:9.5px}' +
-        'table.cc td.sun,table.cc th.sun{background:#fdf3d3}' +
-        'table.cc thead th.sun{background:#8a6d1f}' +
-        'table.cc thead .dow-row th.sun{background:#a8892f}' +
-        'table.cc td.sum{font-weight:600}' +
-        'table.cc tbody tr:nth-child(even) td{background:#f2f8f2}' +
-        'table.cc tbody tr td.sun{background:#fdf3d3}' +
-        'table.cc tr.total td{background:#fdf3d3;font-weight:800}' +
-        'table.cc thead th.hol{background:#fdeeda;color:#c0392b;font-weight:800}' +
-        'table.cc thead .dow-row th.hol{background:#f7e3c2;color:#c0392b;font-weight:700}' +
-        'table.cc td.hol-txt{color:#c0392b;font-weight:700}' +
-        '.sign{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:18px;font-size:12.5px;padding-left:4.42cm;padding-right:4.42cm}' +
-        '.sign-col{text-align:center}' +
-        '.sign-date{font-style:italic;min-height:18px;margin-bottom:6px}' +
-        '.sign .role{font-weight:700;text-transform:uppercase}' +
-        '.sign .hint{font-style:italic;font-size:11px;color:#43564a;margin-top:2px}' +
-        '.sign-space{height:64px}' +
-        '.sign-line{width:55%;margin:0 auto;border-bottom:1px dotted #9db8a4}' +
-        '@media print{.pbar{display:none!important}html,body{width:297mm;margin:0;padding:0;background:#fff;color:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{width:297mm;min-width:0;margin:0;padding:6mm;box-sizing:border-box}.sheet table.cc{width:100%;table-layout:fixed;border-collapse:collapse;font-size:7.4pt;line-height:1.2;color:#000!important}.sheet table.cc th,.sheet table.cc td{box-sizing:border-box;border:0.25mm solid #000!important;color:#000!important;padding:1.4mm 0.25mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere}.sheet table.cc td.c-name,.sheet table.cc td.c-title,.sheet table.cc td.c-dept{text-align:left;padding-left:0.7mm}.sheet table.cc td.day{font-size:7.2pt}.sheet table.cc td.c-title,.sheet table.cc td.c-dept{font-size:7.2pt}.sheet table.cc thead th{background:#ebf1eb!important;color:#000!important;font-weight:700}.sheet table.cc thead .dow-row th{background:#f1f1f1!important;color:#000!important;font-size:6.5pt}.sheet table.cc thead th.hol,.sheet table.cc thead .dow-row th.hol{color:#9c1d12!important}.sheet h1{font-size:12pt;color:#000;margin:3mm 0 2mm}.sheet .ent-name{font-size:11pt;color:#000}.sheet .ent-addr{font-size:8.5pt;color:#000}.sheet .sign{font-size:9pt;padding-left:26mm;padding-right:26mm;margin-top:5mm}.sheet .sign-space{height:12mm}.sheet .sign .hint{font-size:8pt;color:#000}.sheet table.cc thead{display:table-header-group}.sheet table.cc tr{break-inside:avoid;page-break-inside:avoid}.sheet table.cc tbody{break-inside:auto}}';
-      /* Bản in là bảng HTML vector, không raster hóa ảnh. Cố định tỷ lệ chiều rộng từng cột
-         để bảng 31 ngày vừa đúng chiều ngang giấy A4 mà không bị trình duyệt thu nhỏ toàn trang. */
-      var fixedPrint = hideDeptCol() ? [7, 15, 29, 20] : [7, 15, 29, 20, 20];
-      var dayPrint = kind === "cc" ? 4 : (hideDeptCol() ? 6.1 : 5.7);
-      var sumPrint = kind === "cc" ? [9.8, 9.8, 9.8, 9.8, 9.8, 9.8, 9.8] : [15];
-      var weights = fixedPrint.concat(Array(31).fill(dayPrint), sumPrint);
-      var totalWeight = weights.reduce(function(a,b){return a+b;},0);
-      var colsForPrint = '<colgroup>' + weights.map(function(w){return '<col style="width:' + (100*w/totalWeight).toFixed(4) + '%">';}).join('') + '</colgroup>';
-      var printContent = el.outerHTML.replace('<table class="cc">','<table class="cc">' + colsForPrint);
-      var html = '<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>' + css + '</style></head><body>' +
-        '<div class="pbar"><b>Trang in đã sẵn sàng (khổ A4 ngang).</b> Bấm <b>Ctrl+P</b> (trên Mac: <b>Cmd+P</b>) để in / lưu PDF. Nếu trình duyệt còn hiện ngày giờ, địa chỉ website hoặc tiêu đề ngoài mép giấy, vào <b>Cài đặt khác (More settings)</b> và bỏ chọn <b>Đầu trang và chân trang (Headers and footers)</b>.</div>' +
-        printContent +
-        '</body></html>'; 
-      var w = null;
-      try { w = window.open("", "_blank"); } catch(e){ w = null; }
-      if (w && w.document){
-        w.document.open();
-        w.document.write(html);
-        w.document.close();
-        showNotice("Đã mở trang in ở thẻ mới — trong thẻ đó chị bấm Ctrl+P để in / lưu PDF.");
-      } else {
-        showNotice("Trình duyệt đang chặn mở thẻ mới nên chưa mở được trang in. Vui lòng cho phép mở thẻ/popup cho trang này rồi bấm In lại, hoặc tải file Excel rồi in từ Excel.");
+      try {
+        var isCC = kind === "cc";
+        var hideDept = hideDeptCol();
+        var SUM = isCC ? CC_SUM : OT_SUM;
+        var ccCols = state.ccCols || { title: 10, dept: 7 };
+        var nday = daysInMonth(state.year, state.month);
+        /* A4 ngang: 841.89pt, trừ 13pt lề mỗi bên. Chừa khoảng cho padding và border cột. */
+        var widths = hideDept ? [19, 42, 99, 64] : [19, 42, 82, 55, 52];
+        var dayWidth = isCC ? (hideDept ? 10.45 : 10.0) : (hideDept ? 15.7 : 14.8);
+        for (var d = 1; d <= 31; d++) widths.push(dayWidth);
+        SUM.forEach(function(){ widths.push(isCC ? 25.5 : 29); });
+        var nc = widths.length;
+        var headings = ["TT", "MSNV", "HỌ VÀ TÊN", "Chức danh"];
+        if (!hideDept) headings.push("Bộ phận");
+        for (d = 1; d <= 31; d++) headings.push(String(d).padStart(2,"0"));
+        SUM.forEach(function(s){ headings.push(s.label); });
+        var HEAD = headings.map(function(t, i){
+          var di = i - (hideDept ? 4 : 5) + 1;
+          var holiday = di >= 1 && di <= 31 && isHoliday(state.year,state.month,di);
+          var sunday = di >= 1 && di <= nday && isSundayOrHoliday(state.year,state.month,di);
+          return {text:t, bold:true, alignment:"center", fontSize:i < (hideDept ? 4 : 5) ? 6.5 : 5.8,
+                  color:holiday ? "#B3261E" : "#111111", fillColor:sunday ? "#FFF0D3" : "#E5EEE5",
+                  margin:[0,2,0,2]};
+        });
+        var fixedN = hideDept ? 4 : 5;
+        var dow = [];
+        for (var k = 0; k < fixedN; k++) dow.push({text:"",fillColor:"#F5F5F5"});
+        for (d = 1; d <= 31; d++){
+          var holiday = d <= nday && isHoliday(state.year,state.month,d);
+          var dowN = d <= nday ? new Date(state.year,state.month-1,d).getDay() : -1;
+          var txt = holiday ? "Lễ" : ["CN","T2","T3","T4","T5","T6","T7"][dowN] || "";
+          dow.push({text:txt,alignment:"center",fontSize:5.6, color:holiday?"#B3261E":"#222222",
+                    fillColor:holiday||dowN===0 ? "#FFF0D3" : "#F5F5F5",margin:[0,2,0,2]});
+        }
+        SUM.forEach(function(){ dow.push({text:"",fillColor:"#F5F5F5"}); });
+        var body = [HEAD,dow];
+        var totals = SUM.map(function(){return 0;});
+        rows.forEach(function(v,ix){
+          var id = trim(isCC?v[5]:v[4]);
+          var values = [String(ix+1),id,trim(isCC?v[6]:v[5]),
+                        titleOf(id,trim(isCC?v[ccCols.title]:v[8]))];
+          if (!hideDept) values.push(trim(isCC?v[ccCols.dept]:v[6]));
+          var out = values.map(function(t,i){return {text:t,fontSize:i===2?6.6:6.1,
+            alignment:i>=2?"left":"center",margin:[0,2,0,2]};});
+          for (var dt=1;dt<=31;dt++){
+            var isH = dt<=nday && isHoliday(state.year,state.month,dt);
+            var sun = dt<=nday && isSundayOrHoliday(state.year,state.month,dt);
+            out.push({text:isCC && isH ? "Lễ" : (dt<=nday ? trim(v[isCC?11+dt:10+dt]):""),
+              alignment:"center",fontSize:6.2,color:isCC && isH?"#B3261E":"#111111",
+              fillColor:sun?"#FFF5DD":(ix%2?"#F8FAF8":"#FFFFFF"),margin:[0,2,0,2]});
+          }
+          SUM.forEach(function(col,si){
+            var raw=trim(v[col.idx]); totals[si] += parseNum(raw)||0;
+            out.push({text:raw || "-",alignment:"center",bold:true,fontSize:6.1,margin:[0,2,0,2]});
+          });
+          body.push(out);
+        });
+        var totalLine=[{text:"TỔNG CỘNG",colSpan:fixedN,bold:true,alignment:"center",fillColor:"#FFF0D3",margin:[0,3,0,3]}];
+        for(var f=1;f<fixedN;f++) totalLine.push({});
+        for(d=1;d<=31;d++) totalLine.push({text:"",fillColor:"#FFF0D3"});
+        totals.forEach(function(n){totalLine.push({text:fmtNum(n),bold:true,alignment:"center",fillColor:"#FFF0D3",fontSize:6.4});});
+        body.push(totalLine);
+        var e=state.entities[state.entityKey]||{};
+        var entity=entityFullName(state.entityKey)||entityLabel(state.entityKey);
+        var heading=(isCC?"BẢNG CHẤM CÔNG":"BẢNG CHẤM CÔNG TĂNG CA") + " THÁNG " + state.month + " NĂM " + state.year;
+        var doc={
+          pageSize:"A4",pageOrientation:"landscape",pageMargins:[13,14,13,14],
+          defaultStyle:{font:"Roboto",fontSize:7,color:"#111111"},
+          content:[
+            {text:entity.toUpperCase(),bold:true,fontSize:11,margin:[0,0,0,2]},
+            {text:trim(e.addr),fontSize:8.5,margin:[0,0,0,5]},
+            {text:heading,bold:true,alignment:"center",fontSize:12,margin:[0,1,0,9]},
+            {table:{headerRows:2,dontBreakRows:true,widths:widths,body:body},
+             layout:{hLineWidth:function(){return 0.45;},vLineWidth:function(){return 0.45;},
+               hLineColor:function(){return "#000000";},vLineColor:function(){return "#000000";},
+               paddingLeft:function(){return 0.65;},paddingRight:function(){return 0.65;},
+               paddingTop:function(){return 1.3;},paddingBottom:function(){return 1.3;}}},
+            {columns:[
+              {width:"50%",stack:[{text:"PHÊ DUYỆT",bold:true,alignment:"center",margin:[0,5,0,2]},
+               {text:"(Ký, ghi rõ họ tên)",italics:true,alignment:"center"}]},
+              {width:"50%",stack:[{text:todayLine(),italics:true,alignment:"center"},
+               {text:"NGƯỜI LẬP",bold:true,alignment:"center",margin:[0,4,0,2]},
+               {text:"(Ký, ghi rõ họ tên)",italics:true,alignment:"center"}]}
+            ],margin:[0,9,0,28],fontSize:9,unbreakable:true}
+          ],
+          info:{title:heading,author:"Bảng chấm công Ngành Gạo",subject:"Bảng chấm công A4 ngang"}
+        };
+        var filename=fileBase(kind)+"_IN_A4.pdf";
+        /* Mở trình đọc PDF có nút in; PDF không có header/footer tự động của Chrome. */
+        pdfMake.createPdf(doc).open({},window.open("","_blank"));
+        showNotice("Đã mở bản in PDF A4. Nhấn biểu tượng máy in trong trình xem PDF để in.");
+      } catch(err){
+        showNotice("Không tạo được PDF: " + (err && err.message ? err.message : "lỗi chưa xác định") + ". Hãy thử tải lại trang.");
+        console.error("PDF generation error",err);
       }
     }
 
