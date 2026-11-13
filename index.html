@@ -814,17 +814,26 @@
         var cpl = Math.max(4, Math.floor((w * 7 + 5) / 5.6));
         return Math.max(1, Math.ceil(String(txt || "").length / cpl));
       }
+      /* Tự cân đối chiều cao dòng khi in A4 ngang: ít nhân sự -> dòng cao hơn,
+         nhiều nhân sự -> giữ dòng gọn. Áp dụng cho cả chấm công và tăng ca.
+         Chiều cao tính theo điểm Excel trước khi áp dụng tỉ lệ in 46%.
+         Giới hạn 68pt/dòng tránh hàng đơn lẻ quá cao. */
+      var employeeCount = rows.length;
+      var balancedRowHeight = employeeCount > 0 && employeeCount <= 25
+        ? Math.min(68, Math.max(24, 780 / employeeCount))
+        : 0;
       rows.forEach(function(v, rj){
         var nm = isCC ? trim(v[6]) : trim(v[5]);
         var tt = isCC ? titleOf(trim(v[5]), trim(v[cols.title])) : titleOf(trim(v[4]), trim(v[8]));
         var ln = Math.max(linesFor(nm, colW(2)), linesFor(tt, colW(3)));
         if (!hideDept) ln = Math.max(ln, linesFor(isCC ? trim(v[cols.dept]) : trim(v[6]), colW(NFIX - 1)));
-        if (ln > 1) ws.getRow(DATA0 + rj + 1).height = Math.min(48, ln * 12);
+        var contentHeight = ln > 1 ? Math.min(60, ln * 12) : 15;
+        ws.getRow(DATA0 + rj + 1).height = Math.max(contentHeight, balancedRowHeight);
       });
       ws.getRow(totalR + 1).height = 15.95; ws.getRow(sigRoleR + 1).height = 15.95;
       for (var sr2 = sigHintR + 1; sr2 < sigNameR; sr2++) ws.getRow(sr2 + 1).height = 15;
-      /* ---- tô màu file Excel: tông NHẠT, toàn bộ chữ ĐEN, viền xám nhạt (chỉ file Excel — giao diện web giữ nguyên) ---- */
-      var thinSide = { style: "thin", color: { argb: "FFC9C9C9" } };
+      /* ---- tô màu file Excel: tông NHẠT, đường viền ĐEN mảnh cho mọi ô bảng (chỉ file Excel — giao diện web giữ nguyên) ---- */
+      var thinSide = { style: "thin", color: { argb: "FF000000" } };
       var borderAll = { top: thinSide, bottom: thinSide, left: thinSide, right: thinSide };
       function FILL(hex){ return { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + hex } }; }
       function FONT(o){ o.name = "Times New Roman"; o.color = { argb: "FF" + (o.color || "000000") }; return o; }
