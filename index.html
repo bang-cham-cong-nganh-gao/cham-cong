@@ -921,11 +921,46 @@
       if (!state.otHasData){ showNotice("Tháng này không có tăng ca nên không có bảng để tải/in"); return false; }
       return true;
     }
+    /* Dùng Times New Roman thật được cài trên máy người in (không phân phối font qua GitHub).
+       Chrome/Edge desktop trên HTTPS hỗ trợ Local Font Access API. */
+    var timesPdfReady = false;
+    async function prepareTimesNewRomanPdf(){
+      if (timesPdfReady) return;
+      if (typeof window.queryLocalFonts !== "function") {
+        throw new Error("Trình duyệt chưa hỗ trợ đọc font Times New Roman cục bộ. Vui lòng mở Web App bằng Chrome/Edge trên máy tính Windows.");
+      }
+      var available;
+      try { available = await window.queryLocalFonts(); }
+      catch (e) { throw new Error("Cần cho phép website truy cập font cục bộ để tạo PDF đúng Times New Roman. Hãy cấp quyền Local fonts trong cài đặt trang web rồi thử lại."); }
+      var family = available.filter(function(f){ return /^times new roman$/i.test(f.family.trim()); });
+      if (!family.length) throw new Error("Máy chưa có Times New Roman hoặc trình duyệt không cho phép truy cập font này.");
+      function getStyle(mustBold,mustItalic){
+        return family.find(function(f){
+          var name=(f.style+" "+f.fullName).toLowerCase();
+          var bold=/\bbold\b/.test(name),italic=/\bitalic\b/.test(name);
+          return bold===mustBold && italic===mustItalic;
+        });
+      }
+      var normal=getStyle(false,false), bold=getStyle(true,false), italic=getStyle(false,true), bi=getStyle(true,true);
+      if (!normal || !bold || !italic || !bi) throw new Error("Cần đủ 4 kiểu Times New Roman (Regular, Bold, Italic, Bold Italic) trên máy để xuất PDF chuẩn.");
+      var entries=[normal,bold,italic,bi], names=["TNRregular.ttf","TNRbold.ttf","TNRitalic.ttf","TNRbolditalic.ttf"];
+      var files={};
+      for(var i=0;i<entries.length;i++){
+        var buffer=await (await entries[i].blob()).arrayBuffer(), bytes=new Uint8Array(buffer);
+        var chunks=[];
+        for(var p=0;p<bytes.length;p+=16384) chunks.push(String.fromCharCode.apply(null,bytes.subarray(p,p+16384)));
+        files[names[i]]=btoa(chunks.join(""));
+      }
+      pdfMake.addVirtualFileSystem(files);
+      pdfMake.addFonts({TimesNewRoman:{normal:names[0],bold:names[1],italics:names[2],bolditalics:names[3]}});
+      timesPdfReady=true;
+    }
+
     /* ================= XUẤT PDF A4 VECTOR ĐỂ IN =================
        PDF được dựng từ dữ liệu thực, không dùng ảnh hay Chrome window.print().
        Vì thế KHÔNG có ngày giờ / URL / tên trang do trình duyệt chèn vào.
        Mỗi trang PDF là A4 ngang; bảng nhiều nhân sự tự phân trang, lặp tiêu đề cột. */
-    function printSheet(kind){
+    async function printSheet(kind){
       if (kind === "ot" && !guardOT()) return;
       setTab(kind);
       var rows = kind === "cc" ? ccFiltered() : otFiltered();
@@ -934,7 +969,13 @@
         showNotice("Không tải được thư viện PDF. Vui lòng kiểm tra kết nối mạng rồi tải lại trang.");
         return;
       }
+      var pdfWindow = window.open("", "_blank");
+      if (pdfWindow) {
+        pdfWindow.document.title = "Đang chuẩn bị PDF Times New Roman";
+        pdfWindow.document.body.textContent = "Đang tạo bản in PDF Times New Roman...";
+      }
       try {
+        await prepareTimesNewRomanPdf();
         var isCC = kind === "cc";
         var hideDept = hideDeptCol();
         var SUM = isCC ? CC_SUM : OT_SUM;
@@ -1001,7 +1042,7 @@
         var heading=(isCC?"BẢNG CHẤM CÔNG":"BẢNG CHẤM CÔNG TĂNG CA") + " THÁNG " + state.month + " NĂM " + state.year;
         var doc={
           pageSize:"A4",pageOrientation:"landscape",pageMargins:[13,14,13,14],
-          defaultStyle:{font:"Roboto",fontSize:7,color:"#111111"},
+          defaultStyle:{font:"TimesNewRoman",fontSize:7,color:"#111111"},
           content:[
             {text:entity.toUpperCase(),bold:true,fontSize:11,margin:[0,0,0,2]},
             {text:trim(e.addr),fontSize:8.5,margin:[0,0,0,5]},
@@ -1023,9 +1064,10 @@
         };
         var filename=fileBase(kind)+"_IN_A4.pdf";
         /* Mở trình đọc PDF có nút in; PDF không có header/footer tự động của Chrome. */
-        pdfMake.createPdf(doc).open({},window.open("","_blank"));
-        showNotice("Đã mở bản in PDF A4. Nhấn biểu tượng máy in trong trình xem PDF để in.");
+        pdfMake.createPdf(doc).open({},pdfWindow || undefined);
+        showNotice("Đã mở PDF A4 sử dụng Times New Roman. Nhấn nút in trong trình xem PDF.");
       } catch(err){
+        if (pdfWindow && !pdfWindow.closed) pdfWindow.close();
         showNotice("Không tạo được PDF: " + (err && err.message ? err.message : "lỗi chưa xác định") + ". Hãy thử tải lại trang.");
         console.error("PDF generation error",err);
       }
