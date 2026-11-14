@@ -921,39 +921,41 @@
       if (!state.otHasData){ showNotice("Tháng này không có tăng ca nên không có bảng để tải/in"); return false; }
       return true;
     }
-    /* Dùng Times New Roman thật được cài trên máy người in (không phân phối font qua GitHub).
-       Chrome/Edge desktop trên HTTPS hỗ trợ Local Font Access API. */
-    var timesPdfReady = false;
-    async function prepareTimesNewRomanPdf(){
-      if (timesPdfReady) return;
-      if (typeof window.queryLocalFonts !== "function") {
-        throw new Error("Trình duyệt chưa hỗ trợ đọc font Times New Roman cục bộ. Vui lòng mở Web App bằng Chrome/Edge trên máy tính Windows.");
-      }
-      var available;
-      try { available = await window.queryLocalFonts(); }
-      catch (e) { throw new Error("Cần cho phép website truy cập font cục bộ để tạo PDF đúng Times New Roman. Hãy cấp quyền Local fonts trong cài đặt trang web rồi thử lại."); }
-      var family = available.filter(function(f){ return /^times new roman$/i.test(f.family.trim()); });
-      if (!family.length) throw new Error("Máy chưa có Times New Roman hoặc trình duyệt không cho phép truy cập font này.");
-      function getStyle(mustBold,mustItalic){
-        return family.find(function(f){
-          var name=(f.style+" "+f.fullName).toLowerCase();
-          var bold=/\bbold\b/.test(name),italic=/\bitalic\b/.test(name);
-          return bold===mustBold && italic===mustItalic;
-        });
-      }
-      var normal=getStyle(false,false), bold=getStyle(true,false), italic=getStyle(false,true), bi=getStyle(true,true);
-      if (!normal || !bold || !italic || !bi) throw new Error("Cần đủ 4 kiểu Times New Roman (Regular, Bold, Italic, Bold Italic) trên máy để xuất PDF chuẩn.");
-      var entries=[normal,bold,italic,bi], names=["TNRregular.ttf","TNRbold.ttf","TNRitalic.ttf","TNRbolditalic.ttf"];
-      var files={};
-      for(var i=0;i<entries.length;i++){
-        var buffer=await (await entries[i].blob()).arrayBuffer(), bytes=new Uint8Array(buffer);
-        var chunks=[];
-        for(var p=0;p<bytes.length;p+=16384) chunks.push(String.fromCharCode.apply(null,bytes.subarray(p,p+16384)));
-        files[names[i]]=btoa(chunks.join(""));
-      }
-      pdfMake.addVirtualFileSystem(files);
-      pdfMake.addFonts({TimesNewRoman:{normal:names[0],bold:names[1],italics:names[2],bolditalics:names[3]}});
-      timesPdfReady=true;
+    /* PDF in A4 không xin quyền Local fonts: dùng Tinos (font có chiều rộng tương thích
+       Times New Roman) từ kho font mở qua CDN. Nếu CDN không tải được, PDF vẫn in
+       với font dự phòng tích hợp thay vì báo lỗi chặn chức năng in. */
+    var printPdfFontPromise = null;
+    function preparePrintPdfFont(){
+      if (printPdfFontPromise) return printPdfFontPromise;
+      printPdfFontPromise = (async function(){
+        var remote = "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/tinos/";
+        var names = ["Tinos-Regular.ttf","Tinos-Bold.ttf","Tinos-Italic.ttf","Tinos-BoldItalic.ttf"];
+        function toBase64(buffer){
+          var bytes=new Uint8Array(buffer), pieces=[];
+          for (var p=0;p<bytes.length;p+=8192) pieces.push(String.fromCharCode.apply(null,bytes.subarray(p,p+8192)));
+          return btoa(pieces.join(""));
+        }
+        var urls = [remote, "https://raw.githubusercontent.com/google/fonts/main/ofl/tinos/"];
+        for(var sourceIndex=0;sourceIndex<urls.length;sourceIndex++){
+          try{
+            var results = await Promise.all(names.map(async function(name){
+              var controller = new AbortController();
+              var timeout = setTimeout(function(){ controller.abort(); }, 9000);
+              try{
+                var response = await fetch(urls[sourceIndex]+name,{signal:controller.signal,mode:"cors"});
+                if(!response.ok) throw new Error("Font HTTP " + response.status);
+                return toBase64(await response.arrayBuffer());
+              }finally{ clearTimeout(timeout); }
+            }));
+            var files={}; names.forEach(function(name,i){files[name]=results[i];});
+            pdfMake.addVirtualFileSystem(files);
+            pdfMake.addFonts({TinosPrint:{normal:names[0],bold:names[1],italics:names[2],bolditalics:names[3]}});
+            return "TinosPrint";
+          }catch(e){ console.warn("Không tải được bộ font từ nguồn " + (sourceIndex+1),e); }
+        }
+        return "Roboto"; // dự phòng: luôn tạo được PDF, không yêu cầu quyền font máy
+      })();
+      return printPdfFontPromise;
     }
 
     /* ================= XUẤT PDF A4 VECTOR ĐỂ IN =================
@@ -971,21 +973,28 @@
       }
       var pdfWindow = window.open("", "_blank");
       if (pdfWindow) {
-        pdfWindow.document.title = "Đang chuẩn bị PDF Times New Roman";
-        pdfWindow.document.body.textContent = "Đang tạo bản in PDF Times New Roman...";
+        pdfWindow.document.title = "Đang chuẩn bị PDF A4";
+        pdfWindow.document.body.textContent = "Đang tạo bản in PDF A4...";
       }
       try {
-        await prepareTimesNewRomanPdf();
+        var selectedPdfFont = await preparePrintPdfFont();
         var isCC = kind === "cc";
         var hideDept = hideDeptCol();
         var SUM = isCC ? CC_SUM : OT_SUM;
         var ccCols = state.ccCols || { title: 10, dept: 7 };
         var nday = daysInMonth(state.year, state.month);
-        /* A4 ngang: 841.89pt, trừ 13pt lề mỗi bên. Chừa khoảng cho padding và border cột. */
-        var widths = hideDept ? [19, 42, 99, 64] : [19, 42, 82, 55, 52];
-        var dayWidth = isCC ? (hideDept ? 10.45 : 10.0) : (hideDept ? 15.7 : 14.8);
-        for (var d = 1; d <= 31; d++) widths.push(dayWidth);
-        SUM.forEach(function(){ widths.push(isCC ? 25.5 : 29); });
+        /* Tỷ lệ giống bảng xem trước: ưu tiên Họ tên, Chức danh, Bộ phận;
+           tối ưu bề rộng A4 với các ô ngày nhỏ và cột tổng kết rõ nét. */
+        var widths;
+        if (isCC){
+          widths = hideDept ? [18, 38, 107, 65] : [18, 38, 89, 53, 50];
+          for (var d=1;d<=31;d++) widths.push(hideDept ? 8.7 : 8.65);
+          SUM.forEach(function(){ widths.push(hideDept ? 30 : 26.5); });
+        } else {
+          widths = hideDept ? [19, 39, 119, 77] : [19, 39, 108, 65, 60];
+          for (var d=1;d<=31;d++) widths.push(hideDept ? 13.8 : 12.7);
+          SUM.forEach(function(){ widths.push(32); });
+        }
         var nc = widths.length;
         var headings = ["TT", "MSNV", "HỌ VÀ TÊN", "Chức danh"];
         if (!hideDept) headings.push("Bộ phận");
@@ -995,8 +1004,8 @@
           var di = i - (hideDept ? 4 : 5) + 1;
           var holiday = di >= 1 && di <= 31 && isHoliday(state.year,state.month,di);
           var sunday = di >= 1 && di <= nday && isSundayOrHoliday(state.year,state.month,di);
-          return {text:t, bold:true, alignment:"center", fontSize:i < (hideDept ? 4 : 5) ? 6.5 : 5.8,
-                  color:holiday ? "#B3261E" : "#111111", fillColor:sunday ? "#FFF0D3" : "#E5EEE5",
+          return {text:t, bold:true, alignment:"center", fontSize:i < (hideDept ? 4 : 5) ? 6.7 : 5.9,
+                  color:"#000000", fillColor:sunday ? "#F0F0F0" : "#E8E8E8",
                   margin:[0,2,0,2]};
         });
         var fixedN = hideDept ? 4 : 5;
@@ -1006,8 +1015,8 @@
           var holiday = d <= nday && isHoliday(state.year,state.month,d);
           var dowN = d <= nday ? new Date(state.year,state.month-1,d).getDay() : -1;
           var txt = holiday ? "Lễ" : ["CN","T2","T3","T4","T5","T6","T7"][dowN] || "";
-          dow.push({text:txt,alignment:"center",fontSize:5.6, color:holiday?"#B3261E":"#222222",
-                    fillColor:holiday||dowN===0 ? "#FFF0D3" : "#F5F5F5",margin:[0,2,0,2]});
+          dow.push({text:txt,alignment:"center",fontSize:5.7, color:"#000000",
+                    fillColor:holiday||dowN===0 ? "#F0F0F0" : "#F8F8F8",margin:[0,2,0,2]});
         }
         SUM.forEach(function(){ dow.push({text:"",fillColor:"#F5F5F5"}); });
         var body = [HEAD,dow];
@@ -1017,41 +1026,41 @@
           var values = [String(ix+1),id,trim(isCC?v[6]:v[5]),
                         titleOf(id,trim(isCC?v[ccCols.title]:v[8]))];
           if (!hideDept) values.push(trim(isCC?v[ccCols.dept]:v[6]));
-          var out = values.map(function(t,i){return {text:t,fontSize:i===2?6.6:6.1,
+          var out = values.map(function(t,i){return {text:t,fontSize:i===2?7.1:6.6,
             alignment:i>=2?"left":"center",margin:[0,2,0,2]};});
           for (var dt=1;dt<=31;dt++){
             var isH = dt<=nday && isHoliday(state.year,state.month,dt);
             var sun = dt<=nday && isSundayOrHoliday(state.year,state.month,dt);
             out.push({text:isCC && isH ? "Lễ" : (dt<=nday ? trim(v[isCC?11+dt:10+dt]):""),
-              alignment:"center",fontSize:6.2,color:isCC && isH?"#B3261E":"#111111",
-              fillColor:sun?"#FFF5DD":(ix%2?"#F8FAF8":"#FFFFFF"),margin:[0,2,0,2]});
+              alignment:"center",fontSize:6.5,color:"#000000",
+              fillColor:sun?"#F4F4F4":"#FFFFFF",margin:[0,2,0,2]});
           }
           SUM.forEach(function(col,si){
             var raw=trim(v[col.idx]); totals[si] += parseNum(raw)||0;
-            out.push({text:raw || "-",alignment:"center",bold:true,fontSize:6.1,margin:[0,2,0,2]});
+            out.push({text:raw || "-",alignment:"center",bold:true,fontSize:6.3,margin:[0,2,0,2]});
           });
           body.push(out);
         });
-        var totalLine=[{text:"TỔNG CỘNG",colSpan:fixedN,bold:true,alignment:"center",fillColor:"#FFF0D3",margin:[0,3,0,3]}];
+        var totalLine=[{text:"TỔNG CỘNG",colSpan:fixedN,bold:true,alignment:"center",fillColor:"#ECECEC",margin:[0,3,0,3]}];
         for(var f=1;f<fixedN;f++) totalLine.push({});
-        for(d=1;d<=31;d++) totalLine.push({text:"",fillColor:"#FFF0D3"});
-        totals.forEach(function(n){totalLine.push({text:fmtNum(n),bold:true,alignment:"center",fillColor:"#FFF0D3",fontSize:6.4});});
+        for(d=1;d<=31;d++) totalLine.push({text:"",fillColor:"#ECECEC"});
+        totals.forEach(function(n){totalLine.push({text:fmtNum(n),bold:true,alignment:"center",fillColor:"#ECECEC",fontSize:6.4});});
         body.push(totalLine);
         var e=state.entities[state.entityKey]||{};
         var entity=entityFullName(state.entityKey)||entityLabel(state.entityKey);
         var heading=(isCC?"BẢNG CHẤM CÔNG":"BẢNG CHẤM CÔNG TĂNG CA") + " THÁNG " + state.month + " NĂM " + state.year;
         var doc={
-          pageSize:"A4",pageOrientation:"landscape",pageMargins:[13,14,13,14],
-          defaultStyle:{font:"TimesNewRoman",fontSize:7,color:"#111111"},
+          pageSize:"A4",pageOrientation:"landscape",pageMargins:[13,15,13,15],
+          defaultStyle:{font:selectedPdfFont,fontSize:7,color:"#000000"},
           content:[
-            {text:entity.toUpperCase(),bold:true,fontSize:11,margin:[0,0,0,2]},
-            {text:trim(e.addr),fontSize:8.5,margin:[0,0,0,5]},
-            {text:heading,bold:true,alignment:"center",fontSize:12,margin:[0,1,0,9]},
+            {text:entity.toUpperCase(),bold:true,fontSize:12,margin:[0,0,0,2]},
+            {text:trim(e.addr),fontSize:9,margin:[0,0,0,7]},
+            {text:heading,bold:true,alignment:"center",fontSize:12.5,margin:[0,2,0,10]},
             {table:{headerRows:2,dontBreakRows:true,widths:widths,body:body},
-             layout:{hLineWidth:function(){return 0.45;},vLineWidth:function(){return 0.45;},
+             layout:{hLineWidth:function(){return 0.65;},vLineWidth:function(){return 0.65;},
                hLineColor:function(){return "#000000";},vLineColor:function(){return "#000000";},
-               paddingLeft:function(){return 0.65;},paddingRight:function(){return 0.65;},
-               paddingTop:function(){return 1.3;},paddingBottom:function(){return 1.3;}}},
+               paddingLeft:function(){return 0.45;},paddingRight:function(){return 0.45;},
+               paddingTop:function(){return 1.8;},paddingBottom:function(){return 1.8;}}},
             {columns:[
               {width:"50%",stack:[{text:"PHÊ DUYỆT",bold:true,alignment:"center",margin:[0,5,0,2]},
                {text:"(Ký, ghi rõ họ tên)",italics:true,alignment:"center"}]},
@@ -1065,7 +1074,7 @@
         var filename=fileBase(kind)+"_IN_A4.pdf";
         /* Mở trình đọc PDF có nút in; PDF không có header/footer tự động của Chrome. */
         pdfMake.createPdf(doc).open({},pdfWindow || undefined);
-        showNotice("Đã mở PDF A4 sử dụng Times New Roman. Nhấn nút in trong trình xem PDF.");
+        showNotice("Đã mở bản in PDF A4 rõ nét. Nhấn nút in trong trình xem PDF.");
       } catch(err){
         if (pdfWindow && !pdfWindow.closed) pdfWindow.close();
         showNotice("Không tạo được PDF: " + (err && err.message ? err.message : "lỗi chưa xác định") + ". Hãy thử tải lại trang.");
