@@ -806,6 +806,16 @@
       ws.mergeCells(1, 1, 1, NCOL);
       ws.mergeCells(2, 1, 2, NCOL);
       ws.mergeCells(3, 1, 3, NCOL);
+      /* Gộp dọc 2 hàng tiêu đề đúng mẫu A An Oryza: các cột thông tin nhân sự
+         và toàn bộ cột tổng hợp; riêng 31 cột ngày giữ hai hàng Ngày / Thứ.
+         NFIX tự thay đổi theo pháp nhân có/không có cột Bộ phận;
+         SUM.length tương ứng bảng chấm công hoặc bảng tăng ca. */
+      for (var fixedCol = 1; fixedCol <= NFIX; fixedCol++){
+        ws.mergeCells(HEAD_R + 1, fixedCol, DOW_R + 1, fixedCol);
+      }
+      for (var sumCol = NFIX + 31 + 1; sumCol <= NCOL; sumCol++){
+        ws.mergeCells(HEAD_R + 1, sumCol, DOW_R + 1, sumCol);
+      }
       [sigRoleR, sigHintR, sigNameR].forEach(function(sr){
         ws.mergeCells(sr + 1, SIG_L0 + 1, sr + 1, SIG_L1 + 1);
         ws.mergeCells(sr + 1, SIG_R0 + 1, sr + 1, SIG_R1 + 1);
