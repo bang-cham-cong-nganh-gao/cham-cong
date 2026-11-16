@@ -592,7 +592,7 @@
           '</td><td class="c-title">' + esc(titleOf(trim(v[5]), trim(v[cols.title]))) + "</td>" + (hideDept ? "" : '<td class="c-dept">' + esc(trim(v[cols.dept])) + "</td>");
         for (d = 1; d <= 31; d++){
           var sun = isSundayOrHoliday(state.year, state.month, d);
-          if (isHoliday(state.year, state.month, d)) h += '<td class="day hol-txt' + (sun ? " sun" : "") + '">Lễ</td>';
+          if (isHoliday(state.year, state.month, d)) h += '<td class="day hol-txt' + (sun ? " sun" : "") + '">LE</td>';
           else h += '<td class="day' + (sun ? " sun" : "") + '">' + esc(trim(v[11 + d])) + "</td>";
         }
         CC_SUM.forEach(function(c, ci){
@@ -745,7 +745,7 @@
         var r = [i + 1, isCC ? trim(v[5]) : trim(v[4]), isCC ? trim(v[6]) : trim(v[5]),
                  isCC ? titleOf(trim(v[5]), trim(v[cols.title])) : titleOf(trim(v[4]), trim(v[8]))];
         if (!hideDept) r.push(isCC ? trim(v[cols.dept]) : trim(v[6]));
-        for (d = 1; d <= 31; d++) r.push(isCC ? (isHoliday(state.year, state.month, d) ? "Lễ" : trim(v[11 + d])) : trim(v[10 + d]));
+        for (d = 1; d <= 31; d++) r.push(isCC ? (isHoliday(state.year, state.month, d) ? "LE" : trim(v[11 + d])) : trim(v[10 + d]));
         SUM.forEach(function(c, ci){
           var raw = trim(v[c.idx]);
           var n = parseNum(raw);
@@ -1113,7 +1113,7 @@
           for (var dt=1;dt<=31;dt++){
             var isH = dt<=nday && isHoliday(state.year,state.month,dt);
             var sun = dt<=nday && isSundayOrHoliday(state.year,state.month,dt);
-            var dayText=isCC && isH ? "Lễ" : (dt<=nday ? trim(v[isCC?11+dt:10+dt]):"");
+            var dayText=isCC && isH ? "LE" : (dt<=nday ? trim(v[isCC?11+dt:10+dt]):"");
             var daySize=dayText.length>4?4.8:(dayText.length>2?5.3:6.4);
             out.push({text:dayText,alignment:"center",valign:"middle",fontSize:daySize,
               color:"#000000",noWrap:dayText.length<=5,
