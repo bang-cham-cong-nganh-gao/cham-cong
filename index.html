@@ -1067,16 +1067,27 @@
         visibleSUM.forEach(function(s){ headings.push(sumPdfLabel(s.label)); });
         /* Hàng đầu: nhóm thông tin nhân sự và nhóm tổng kết gộp dọc 2 hàng;
            chỉ riêng ngày 01-31 giữ hàng thứ trong tuần bên dưới. */
+        /* V8: căn giữa cả ngang lẫn dọc trong vùng tiêu đề thực tế.
+           Các ô cố định/tổng hợp gộp qua 2 hàng (36 + 14 pt);
+           cột ngày chỉ chiếm hàng đầu 36 pt. pdfMake có thể không tự
+           căn dọc rowSpan như mong đợi nên tính padding trên riêng. */
+        var pdfHeadRowHeight = 36, pdfDowRowHeight = 14;
         var HEAD = headings.map(function(t,i){
           var dayIndex = i - fixedN + 1;
           var isDay = dayIndex>=1 && dayIndex<=31;
           var sunday = isDay && dayIndex<=nday && isSundayOrHoliday(state.year,state.month,dayIndex);
           var mealOrPay = !isDay && i >= fixedN+31 && /NGÀY CÔNG TÍNH (CƠM|LƯƠNG)/.test(t.replace(/\n/g," "));
-          return {text:t, rowSpan:isDay?1:2, bold:true, alignment:"center", valign:"middle",
-                  fontSize:isDay?5.8:(mealOrPay?6.0:(i<fixedN?7.2:(sumWidths[i-fixedN-31] < 23 ? 5.8 : 6.2))),
-                  lineHeight:mealOrPay?1.24:1.08,
+          var fs = isDay ? 5.8 : (mealOrPay ? 6.0 : (i<fixedN ? 7.2 : (sumWidths[i-fixedN-31]<23 ? 5.8 : 6.2)));
+          var lh = mealOrPay ? 1.24 : 1.08;
+          var lineCount = String(t).split("\n").length;
+          var availableHeight = isDay ? pdfHeadRowHeight : pdfHeadRowHeight + pdfDowRowHeight;
+          var estimatedTextHeight = lineCount * fs * lh;
+          var topGap = Math.max(1, (availableHeight - estimatedTextHeight) / 2 - 2);
+          return {text:t, rowSpan:isDay?1:2, bold:true,
+                  alignment:"center", valign:"middle",
+                  fontSize:fs, lineHeight:lh,
                   color:"#000000", fillColor:sunday ? "#F0F0F0" : "#EAEAEA",
-                  margin:[0,isDay?2:(mealOrPay?4:3),0,isDay?2:(mealOrPay?4:3)]};
+                  margin:[0,topGap,0,0]};
         });
         var dow = [];
         for(var k=0;k<fixedN;k++) dow.push({}); // placeholder cho ô gộp dọc
@@ -1133,7 +1144,7 @@
             /* Hai cột Ngày công tính cơm/lương có 4 dòng tiêu đề.
                Tăng chiều cao 2 hàng đầu để chữ không bị cắt trong ô gộp. */
             {table:{headerRows:2,dontBreakRows:true,widths:widths,body:body,
-                    heights:function(row){return row===0?36:(row===1?14:undefined);}},
+                    heights:function(row){return row===0?pdfHeadRowHeight:(row===1?pdfDowRowHeight:undefined);}},
              layout:{hLineWidth:function(){return 0.65;},vLineWidth:function(){return 0.65;},
                hLineColor:function(){return "#000000";},vLineColor:function(){return "#000000";},
                paddingLeft:function(){return 0.35;},paddingRight:function(){return 0.35;},
