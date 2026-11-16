@@ -1003,21 +1003,68 @@
           });
         });
         var fixedN = hideDept ? 4 : 5;
-        /* A4 ngang 841.89 pt; lề trái/phải 26pt, dành thêm khoảng an toàn
-           cho đường kẻ đầu/cuối để máy in không cắt mất mép trái. */
-        var printableTableWidth = 756;
-        var fixedWidths = hideDept ? [19,40,108,74] : [19,40,103,67,60];
-        var sumWidth = isCC ? 34 : 45;
+        /* A4 ngang 841.89 pt. Chừa lề TRÁI 33pt, PHẢI 40pt và
+           giới hạn chiều rộng thật của bảng (kể cả nét viền + padding).
+           Chia chiều rộng theo loại cột; dữ liệu ngắn nhận cột hẹp hơn. */
+        var printableTableWidth = 707;
+        var fixedWidths = hideDept ? [17,34,100,72] : [17,34,92,63,54];
         var fixedWidth = fixedWidths.reduce(function(a,b){return a+b;},0);
-        var dayWidth = (printableTableWidth - fixedWidth - visibleSUM.length*sumWidth)/31;
+        var sumPdfLabel = function(label){
+          var keyed = {
+            "Phép năm":"Phép\nnăm",
+            "Hưởng Lương/Chế độ":"Hưởng\nlương/\nChế độ",
+            "Nghỉ chế độ BHXH":"Nghỉ\nchế độ\nBHXH",
+            "Công tác":"Công\ntác",
+            "Nghỉ bù":"Nghỉ\nbù",
+            "NGÀY CÔNG TÍNH CƠM":"NGÀY\nCÔNG\nTÍNH\nCƠM",
+            "NGÀY CÔNG TÍNH LƯƠNG":"NGÀY\nCÔNG\nTÍNH\nLƯƠNG",
+            "Tổng Tăng ca":"TỔNG\nTĂNG CA"
+          };
+          return keyed[label] || String(label).replace(/\s+/g,"\n");
+        };
+        /* Cột tổng được tính chiều rộng từ dữ liệu thực và tiêu đề đã ngắt dòng.
+           Vẫn dành chỗ cho các con số; không để tiêu đề dính vào giá trị. */
+        var sumWidths = visibleSUM.map(function(col){
+          var longest = rows.reduce(function(max,v){
+            var s=trim(v[col.idx]); return Math.max(max,s.length);
+          },0);
+          /* Tiêu đề ngắn đã ngắt thành 2 dòng thì cột phải thu hẹp tương ứng.
+             Chừa chỗ cho giá trị lớn để các số không bị tràn hoặc dính nhau. */
+          if (/^(Phép năm|Công tác|Nghỉ bù)$/.test(col.label)) {
+            return Math.max(18.5, Math.min(27, 17.5 + Math.min(longest, 8)*1.25));
+          }
+          if (col.label === "Nghỉ chế độ BHXH") {
+            return Math.max(23, Math.min(31, 20 + Math.min(longest, 8)*1.3));
+          }
+          if (col.label === "Hưởng Lương/Chế độ") {
+            return Math.max(24, Math.min(32, 21 + Math.min(longest, 8)*1.3));
+          }
+          if (/TÍNH CƠM|TÍNH LƯƠNG/.test(col.label)) {
+            return Math.max(28, Math.min(36, 25 + Math.min(longest, 8)*1.4));
+          }
+          return Math.max(22, Math.min(30, 19 + Math.min(longest, 8)*1.45));
+        });
+        var sumTotal = sumWidths.reduce(function(a,b){return a+b;},0);
+        var minDayWidth=10.5;
+        /* Ưu tiên đủ chỗ cho 31 ngày, co nhẹ thông tin nhân sự nếu nhiều cột tổng. */
+        if (printableTableWidth - fixedWidth - sumTotal < 31*minDayWidth){
+          var shortfall = 31*minDayWidth-(printableTableWidth-fixedWidth-sumTotal);
+          var reductions=[0,0,13,10,9];
+          for(var red=0;red<fixedWidths.length && shortfall>0;red++){
+            var delta=Math.min(shortfall,reductions[red]||0);
+            fixedWidths[red]-=delta; shortfall-=delta;
+          }
+          fixedWidth=fixedWidths.reduce(function(a,b){return a+b;},0);
+        }
+        var dayWidth = (printableTableWidth - fixedWidth - sumTotal)/31;
         var widths = fixedWidths.slice();
         for (var d=1;d<=31;d++) widths.push(dayWidth);
-        visibleSUM.forEach(function(){ widths.push(sumWidth); });
+        sumWidths.forEach(function(w){ widths.push(w); });
         var nc = widths.length;
         var headings = ["TT", "MSNV", "HỌ VÀ TÊN", "Chức danh"];
         if (!hideDept) headings.push("Bộ phận");
         for (d=1;d<=31;d++) headings.push(String(d).padStart(2,"0"));
-        visibleSUM.forEach(function(s){ headings.push(s.label); });
+        visibleSUM.forEach(function(s){ headings.push(sumPdfLabel(s.label)); });
         /* Hàng đầu: nhóm thông tin nhân sự và nhóm tổng kết gộp dọc 2 hàng;
            chỉ riêng ngày 01-31 giữ hàng thứ trong tuần bên dưới. */
         var HEAD = headings.map(function(t,i){
@@ -1025,9 +1072,9 @@
           var isDay = dayIndex>=1 && dayIndex<=31;
           var sunday = isDay && dayIndex<=nday && isSundayOrHoliday(state.year,state.month,dayIndex);
           return {text:t, rowSpan:isDay?1:2, bold:true, alignment:"center", valign:"middle",
-                  fontSize:isDay?6.0:(i<fixedN?7.5:6.6),
+                  fontSize:isDay?5.8:(i<fixedN?7.2:(sumWidths[i-fixedN-31] < 23 ? 5.8 : 6.2)),
                   color:"#000000", fillColor:sunday ? "#F0F0F0" : "#EAEAEA",
-                  margin:[0,isDay?3:6,0,isDay?3:6]};
+                  margin:[0,isDay?2:3,0,isDay?2:3]};
         });
         var dow = [];
         for(var k=0;k<fixedN;k++) dow.push({}); // placeholder cho ô gộp dọc
@@ -1046,18 +1093,23 @@
           var values = [String(ix+1),id,trim(isCC?v[6]:v[5]),
                         titleOf(id,trim(isCC?v[ccCols.title]:v[8]))];
           if (!hideDept) values.push(trim(isCC?v[ccCols.dept]:v[6]));
-          var out = values.map(function(t,i){return {text:t,fontSize:i===2?7.1:6.6,
-            alignment:i>=2?"left":"center",margin:[0,2,0,2]};});
+          /* pdfMake tự ngắt dòng theo cột; MSNV không xuống dòng để tránh tách mã.
+             Nội dung dài ở họ tên/chức danh/bộ phận được giữ nguyên trong ô. */
+          var out = values.map(function(t,i){return {text:t,fontSize:i===2?7.0:(i===1?6.4:6.5),
+            noWrap:i===1,alignment:i>=2?"left":"center",valign:"middle",margin:[0,1.7,0,1.7]};});
           for (var dt=1;dt<=31;dt++){
             var isH = dt<=nday && isHoliday(state.year,state.month,dt);
             var sun = dt<=nday && isSundayOrHoliday(state.year,state.month,dt);
-            out.push({text:isCC && isH ? "Lễ" : (dt<=nday ? trim(v[isCC?11+dt:10+dt]):""),
-              alignment:"center",valign:"middle",fontSize:6.5,color:"#000000",
-              fillColor:sun?"#F4F4F4":"#FFFFFF",margin:[0,2,0,2]});
+            var dayText=isCC && isH ? "Lễ" : (dt<=nday ? trim(v[isCC?11+dt:10+dt]):"");
+            var daySize=dayText.length>4?4.8:(dayText.length>2?5.3:6.4);
+            out.push({text:dayText,alignment:"center",valign:"middle",fontSize:daySize,
+              color:"#000000",noWrap:dayText.length<=5,
+              fillColor:sun?"#F4F4F4":"#FFFFFF",margin:[0,1.7,0,1.7]});
           }
           visibleSUM.forEach(function(col,si){
             var raw=trim(v[col.idx]); totals[si] += parseNum(raw)||0;
-            out.push({text:raw || "-",alignment:"center",valign:"middle",bold:true,fontSize:6.3,margin:[0,2,0,2]});
+            out.push({text:raw || "-",alignment:"center",valign:"middle",bold:true,
+              fontSize:raw.length>5?5.7:6.3,margin:[0,1.7,0,1.7]});
           });
           body.push(out);
         });
@@ -1070,7 +1122,7 @@
         var entity=entityFullName(state.entityKey)||entityLabel(state.entityKey);
         var heading=(isCC?"BẢNG CHẤM CÔNG":"BẢNG CHẤM CÔNG TĂNG CA") + " THÁNG " + state.month + " NĂM " + state.year;
         var doc={
-          pageSize:"A4",pageOrientation:"landscape",pageMargins:[28,18,28,18],
+          pageSize:"A4",pageOrientation:"landscape",pageMargins:[33,18,40,18],
           defaultStyle:{font:selectedPdfFont,fontSize:7,color:"#000000"},
           content:[
             {text:entity.toUpperCase(),bold:true,fontSize:12,margin:[0,0,0,2]},
@@ -1079,7 +1131,7 @@
             {table:{headerRows:2,dontBreakRows:true,widths:widths,body:body},
              layout:{hLineWidth:function(){return 0.65;},vLineWidth:function(){return 0.65;},
                hLineColor:function(){return "#000000";},vLineColor:function(){return "#000000";},
-               paddingLeft:function(){return 0.45;},paddingRight:function(){return 0.45;},
+               paddingLeft:function(){return 0.35;},paddingRight:function(){return 0.35;},
                paddingTop:function(){return 1.8;},paddingBottom:function(){return 1.8;}}},
             {columns:[
               {width:"50%",stack:[{text:"PHÊ DUYỆT",bold:true,alignment:"center",margin:[0,5,0,2]},
@@ -1213,7 +1265,10 @@
     $("selMonth").addEventListener("change", function(){ state.month = +this.value; loadMonth(true); });
     $("selYear").addEventListener("change", function(){ state.year = +this.value; loadMonth(true); });
     $("selEntity").addEventListener("change", function(){ state.entityKey = this.value; renderCC(); renderOT(); });
-    $("btnSync").addEventListener("click", function(){ loadMeta(true).then(function(){ loadMonth(true); }).catch(function(err){ showError("Không đồng bộ được dữ liệu: " + err.message); }); });
+    $("btnSync").addEventListener("click", function(){
+      if (initialLoadTimer !== null){ clearTimeout(initialLoadTimer); initialLoadTimer = null; }
+      loadMeta(true).then(function(){ return loadMonth(true); }).catch(function(err){ showError("Không đồng bộ được dữ liệu: " + err.message); });
+    });
     $("btnPrintCC").addEventListener("click", function(){ printSheet("cc"); });
     $("btnPrintOT").addEventListener("click", function(){ printSheet("ot"); });
     $("btnExcelCC").addEventListener("click", function(){ exportExcel("cc"); });
@@ -1224,10 +1279,14 @@
 
     /* ================= INIT ================= */
     buildMonthYearSelectors();
-    loadMeta().then(function(){ return loadMonth(false); }).catch(function(){
-      /* meta lỗi vẫn thử tải tháng mặc định 10/2026 */
-      loadMonth(false);
-    });
+    /* Tự nạp dữ liệu sau 3 giây kể từ lúc mở trang; nút tải thủ công giữ nguyên.
+       Một lần duy nhất, không tự tải lại khi người dùng chỉ đổi pháp nhân. */
+    var initialLoadTimer = setTimeout(function(){
+      initialLoadTimer = null;
+      loadMeta().then(function(){ return loadMonth(false); }).catch(function(){
+        loadMonth(false);
+      });
+    }, 3000);
 </script>
   </body>
 </html>
