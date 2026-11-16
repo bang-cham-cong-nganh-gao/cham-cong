@@ -1071,10 +1071,12 @@
           var dayIndex = i - fixedN + 1;
           var isDay = dayIndex>=1 && dayIndex<=31;
           var sunday = isDay && dayIndex<=nday && isSundayOrHoliday(state.year,state.month,dayIndex);
+          var mealOrPay = !isDay && i >= fixedN+31 && /NGÀY CÔNG TÍNH (CƠM|LƯƠNG)/.test(t.replace(/\n/g," "));
           return {text:t, rowSpan:isDay?1:2, bold:true, alignment:"center", valign:"middle",
-                  fontSize:isDay?5.8:(i<fixedN?7.2:(sumWidths[i-fixedN-31] < 23 ? 5.8 : 6.2)),
+                  fontSize:isDay?5.8:(mealOrPay?6.0:(i<fixedN?7.2:(sumWidths[i-fixedN-31] < 23 ? 5.8 : 6.2))),
+                  lineHeight:mealOrPay?1.24:1.08,
                   color:"#000000", fillColor:sunday ? "#F0F0F0" : "#EAEAEA",
-                  margin:[0,isDay?2:3,0,isDay?2:3]};
+                  margin:[0,isDay?2:(mealOrPay?4:3),0,isDay?2:(mealOrPay?4:3)]};
         });
         var dow = [];
         for(var k=0;k<fixedN;k++) dow.push({}); // placeholder cho ô gộp dọc
@@ -1128,7 +1130,10 @@
             {text:entity.toUpperCase(),bold:true,fontSize:12,margin:[0,0,0,2]},
             {text:trim(e.addr),fontSize:9,margin:[0,0,0,7]},
             {text:heading,bold:true,alignment:"center",fontSize:12.5,margin:[0,2,0,10]},
-            {table:{headerRows:2,dontBreakRows:true,widths:widths,body:body},
+            /* Hai cột Ngày công tính cơm/lương có 4 dòng tiêu đề.
+               Tăng chiều cao 2 hàng đầu để chữ không bị cắt trong ô gộp. */
+            {table:{headerRows:2,dontBreakRows:true,widths:widths,body:body,
+                    heights:function(row){return row===0?36:(row===1?14:undefined);}},
              layout:{hLineWidth:function(){return 0.65;},vLineWidth:function(){return 0.65;},
                hLineColor:function(){return "#000000";},vLineColor:function(){return "#000000";},
                paddingLeft:function(){return 0.35;},paddingRight:function(){return 0.35;},
