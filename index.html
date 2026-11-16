@@ -993,44 +993,54 @@
         var SUM = isCC ? CC_SUM : OT_SUM;
         var ccCols = state.ccCols || { title: 10, dept: 7 };
         var nday = daysInMonth(state.year, state.month);
-        /* Tỷ lệ giống bảng xem trước: ưu tiên Họ tên, Chức danh, Bộ phận;
-           tối ưu bề rộng A4 với các ô ngày nhỏ và cột tổng kết rõ nét. */
-        var widths;
-        if (isCC){
-          widths = hideDept ? [18, 38, 107, 65] : [18, 38, 89, 53, 50];
-          for (var d=1;d<=31;d++) widths.push(hideDept ? 8.7 : 8.65);
-          SUM.forEach(function(){ widths.push(hideDept ? 30 : 26.5); });
-        } else {
-          widths = hideDept ? [19, 39, 119, 77] : [19, 39, 108, 65, 60];
-          for (var d=1;d<=31;d++) widths.push(hideDept ? 13.8 : 12.7);
-          SUM.forEach(function(){ widths.push(32); });
-        }
+        /* PDF: tự ẩn cột tổng kết không phát sinh số liệu của pháp nhân/tháng.
+           Chỉ áp dụng PDF, không ảnh hưởng bảng web hay Excel. */
+        var visibleSUM = SUM.filter(function(col){
+          return rows.some(function(v){
+            var raw = trim(v[col.idx]);
+            var num = parseNum(raw);
+            return num !== null ? num !== 0 : (raw !== "" && raw !== "-" && raw !== "0");
+          });
+        });
+        var fixedN = hideDept ? 4 : 5;
+        /* A4 ngang 841.89 pt; lề trái/phải 26pt, dành thêm khoảng an toàn
+           cho đường kẻ đầu/cuối để máy in không cắt mất mép trái. */
+        var printableTableWidth = 756;
+        var fixedWidths = hideDept ? [19,40,108,74] : [19,40,103,67,60];
+        var sumWidth = isCC ? 34 : 45;
+        var fixedWidth = fixedWidths.reduce(function(a,b){return a+b;},0);
+        var dayWidth = (printableTableWidth - fixedWidth - visibleSUM.length*sumWidth)/31;
+        var widths = fixedWidths.slice();
+        for (var d=1;d<=31;d++) widths.push(dayWidth);
+        visibleSUM.forEach(function(){ widths.push(sumWidth); });
         var nc = widths.length;
         var headings = ["TT", "MSNV", "HỌ VÀ TÊN", "Chức danh"];
         if (!hideDept) headings.push("Bộ phận");
-        for (d = 1; d <= 31; d++) headings.push(String(d).padStart(2,"0"));
-        SUM.forEach(function(s){ headings.push(s.label); });
-        var HEAD = headings.map(function(t, i){
-          var di = i - (hideDept ? 4 : 5) + 1;
-          var holiday = di >= 1 && di <= 31 && isHoliday(state.year,state.month,di);
-          var sunday = di >= 1 && di <= nday && isSundayOrHoliday(state.year,state.month,di);
-          return {text:t, bold:true, alignment:"center", fontSize:i < (hideDept ? 4 : 5) ? 6.7 : 5.9,
-                  color:"#000000", fillColor:sunday ? "#F0F0F0" : "#E8E8E8",
-                  margin:[0,2,0,2]};
+        for (d=1;d<=31;d++) headings.push(String(d).padStart(2,"0"));
+        visibleSUM.forEach(function(s){ headings.push(s.label); });
+        /* Hàng đầu: nhóm thông tin nhân sự và nhóm tổng kết gộp dọc 2 hàng;
+           chỉ riêng ngày 01-31 giữ hàng thứ trong tuần bên dưới. */
+        var HEAD = headings.map(function(t,i){
+          var dayIndex = i - fixedN + 1;
+          var isDay = dayIndex>=1 && dayIndex<=31;
+          var sunday = isDay && dayIndex<=nday && isSundayOrHoliday(state.year,state.month,dayIndex);
+          return {text:t, rowSpan:isDay?1:2, bold:true, alignment:"center", valign:"middle",
+                  fontSize:isDay?6.0:(i<fixedN?7.5:6.6),
+                  color:"#000000", fillColor:sunday ? "#F0F0F0" : "#EAEAEA",
+                  margin:[0,isDay?3:6,0,isDay?3:6]};
         });
-        var fixedN = hideDept ? 4 : 5;
         var dow = [];
-        for (var k = 0; k < fixedN; k++) dow.push({text:"",fillColor:"#F5F5F5"});
-        for (d = 1; d <= 31; d++){
-          var holiday = d <= nday && isHoliday(state.year,state.month,d);
-          var dowN = d <= nday ? new Date(state.year,state.month-1,d).getDay() : -1;
-          var txt = holiday ? "Lễ" : ["CN","T2","T3","T4","T5","T6","T7"][dowN] || "";
-          dow.push({text:txt,alignment:"center",fontSize:5.7, color:"#000000",
-                    fillColor:holiday||dowN===0 ? "#F0F0F0" : "#F8F8F8",margin:[0,2,0,2]});
+        for(var k=0;k<fixedN;k++) dow.push({}); // placeholder cho ô gộp dọc
+        for(d=1;d<=31;d++){
+          var holiday = d<=nday && isHoliday(state.year,state.month,d);
+          var dowN = d<=nday ? new Date(state.year,state.month-1,d).getDay() : -1;
+          var txt = holiday ? "Lễ" : (["CN","T2","T3","T4","T5","T6","T7"][dowN] || "");
+          dow.push({text:txt,alignment:"center",valign:"middle",fontSize:5.9,color:"#000000",
+                    fillColor:holiday||dowN===0?"#F0F0F0":"#F8F8F8",margin:[0,2,0,2]});
         }
-        SUM.forEach(function(){ dow.push({text:"",fillColor:"#F5F5F5"}); });
+        visibleSUM.forEach(function(){dow.push({});});
         var body = [HEAD,dow];
-        var totals = SUM.map(function(){return 0;});
+        var totals = visibleSUM.map(function(){return 0;});
         rows.forEach(function(v,ix){
           var id = trim(isCC?v[5]:v[4]);
           var values = [String(ix+1),id,trim(isCC?v[6]:v[5]),
@@ -1042,12 +1052,12 @@
             var isH = dt<=nday && isHoliday(state.year,state.month,dt);
             var sun = dt<=nday && isSundayOrHoliday(state.year,state.month,dt);
             out.push({text:isCC && isH ? "Lễ" : (dt<=nday ? trim(v[isCC?11+dt:10+dt]):""),
-              alignment:"center",fontSize:6.5,color:"#000000",
+              alignment:"center",valign:"middle",fontSize:6.5,color:"#000000",
               fillColor:sun?"#F4F4F4":"#FFFFFF",margin:[0,2,0,2]});
           }
-          SUM.forEach(function(col,si){
+          visibleSUM.forEach(function(col,si){
             var raw=trim(v[col.idx]); totals[si] += parseNum(raw)||0;
-            out.push({text:raw || "-",alignment:"center",bold:true,fontSize:6.3,margin:[0,2,0,2]});
+            out.push({text:raw || "-",alignment:"center",valign:"middle",bold:true,fontSize:6.3,margin:[0,2,0,2]});
           });
           body.push(out);
         });
@@ -1060,7 +1070,7 @@
         var entity=entityFullName(state.entityKey)||entityLabel(state.entityKey);
         var heading=(isCC?"BẢNG CHẤM CÔNG":"BẢNG CHẤM CÔNG TĂNG CA") + " THÁNG " + state.month + " NĂM " + state.year;
         var doc={
-          pageSize:"A4",pageOrientation:"landscape",pageMargins:[13,15,13,15],
+          pageSize:"A4",pageOrientation:"landscape",pageMargins:[28,18,28,18],
           defaultStyle:{font:selectedPdfFont,fontSize:7,color:"#000000"},
           content:[
             {text:entity.toUpperCase(),bold:true,fontSize:12,margin:[0,0,0,2]},
